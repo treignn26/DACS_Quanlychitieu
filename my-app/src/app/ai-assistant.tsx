@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+// src/app/ai-assistant.tsx — Tab 3: AI Assistant
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StatusBar,
@@ -10,142 +12,49 @@ import {
   View,
 } from "react-native";
 import { useLanguage } from "../context/LanguageContext";
+import * as api from "../api/client";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const COLORS = {
-  pageBg: "#F5F7F6",
-  cardBg: "#FFFFFF",
-  heroBg: "#1A2E2A",
-  heroSub: "#243D38",
-  heroDeep: "#162420",
-
-  accent: "#2ECC9A",
-  accentDeep: "#1BAA7E",
-  accentSoft: "#E6FAF4",
-
-  income: "#2ECC9A",
-  incomeText: "#15704F",
-  incomeBg: "#E6FAF4",
-  expense: "#FF6B6B",
-  expenseText: "#C0392B",
-  expenseBg: "#FFF0F0",
-
-  warn: "#F5A623",
-  warnBg: "#FEF5E7",
-  warnText: "#B7751A",
-
-  textPrimary: "#1A2422",
-  textSecondary: "#6B8076",
-  textMuted: "#9EB8B0",
-  textOnDark: "#FFFFFF",
-  textOnDarkMuted: "#A8C4BC",
-  textOnDarkDeep: "#6A8E87",
-
-  border: "#E8EFED",
-  inputBg: "#F0F5F3",
-  shadow: "#1A2422",
+  pageBg: "#F5F7F6", cardBg: "#FFFFFF", heroBg: "#1A2E2A", heroSub: "#243D38", heroDeep: "#162420",
+  accent: "#2ECC9A", accentDeep: "#1BAA7E", accentSoft: "#E6FAF4",
+  income: "#2ECC9A", incomeText: "#15704F", incomeBg: "#E6FAF4",
+  expense: "#FF6B6B", expenseText: "#C0392B", expenseBg: "#FFF0F0",
+  warn: "#F5A623", warnBg: "#FEF5E7", warnText: "#B7751A",
+  textPrimary: "#1A2422", textSecondary: "#6B8076", textMuted: "#9EB8B0",
+  textOnDark: "#FFFFFF", textOnDarkMuted: "#A8C4BC", textOnDarkDeep: "#6A8E87",
+  border: "#E8EFED", inputBg: "#F0F5F3", shadow: "#1A2422",
 };
 
 const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
-const R = { sm: 10, md: 16, lg: 24, xl: 32 };
+const R  = { sm: 10, md: 16, lg: 24, xl: 32 };
 
-const fmtVND = (n: number) => n.toLocaleString("vi-VN") + " đ";
+const fmtVND = (n: number) => n.toLocaleString("vi-VN") + " đ";
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-const HEALTH_SCORE = 72;
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface ChatMessage { role: "user" | "ai"; text: string; }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function scoreBand(score: number, lang: "vi" | "en") {
-  if (score >= 80) return { label: lang === "vi" ? "Xuất sắc" : "Excellent", color: COLORS.income };
-  if (score >= 60) return { label: lang === "vi" ? "Tốt"      : "Good",      color: COLORS.warn };
-  return              { label: lang === "vi" ? "Cần cải thiện" : "Needs Work", color: COLORS.expense };
+  if (score >= 80) return { label: lang === "vi" ? "Xuất sắc"       : "Excellent",   color: COLORS.income };
+  if (score >= 60) return { label: lang === "vi" ? "Tốt"            : "Good",        color: COLORS.warn };
+  return               { label: lang === "vi" ? "Cần cải thiện"  : "Needs Work",  color: COLORS.expense };
 }
-
-interface InsightCard {
-  id: string;
-  emoji: string;
-  titleVi: string; titleEn: string;
-  bodyVi:  string; bodyEn:  string;
-  tag: "positive" | "warning" | "neutral";
-}
-
-const INSIGHTS: InsightCard[] = [
-  {
-    id: "1", emoji: "📊",
-    titleVi: "Chi tiêu tháng này",     titleEn: "This Month's Spending",
-    bodyVi:  "Bạn đã chi 1.840.000 đ — ít hơn 12% so với tháng trước. Tiếp tục như vậy!",
-    bodyEn:  "You've spent 1,840,000 đ — 12% less than last month. Keep it up!",
-    tag: "positive",
-  },
-  {
-    id: "2", emoji: "⚠️",
-    titleVi: "Ăn uống tăng mạnh",      titleEn: "Food Spending Up",
-    bodyVi:  "Chi phí ăn uống tăng 35% so với T4. Hãy thử nấu ăn ở nhà nhiều hơn.",
-    bodyEn:  "Food costs are up 35% vs April. Try cooking at home more often.",
-    tag: "warning",
-  },
-  {
-    id: "3", emoji: "🎯",
-    titleVi: "Gần đạt mục tiêu",       titleEn: "Goal Within Reach",
-    bodyVi:  "Quỹ khẩn cấp của bạn đạt 68%. Chỉ cần thêm 960.000 đ/tháng.",
-    bodyEn:  "Your emergency fund is at 68%. Just 960,000 đ/month more to finish.",
-    tag: "neutral",
-  },
-];
-
-interface SpendCat {
-  emoji: string; vi: string; en: string;
-  amount: number; pct: number; color: string;
-}
-
-const SPEND_CATS: SpendCat[] = [
-  { emoji: "🍜", vi: "Ăn uống",   en: "Food",      amount: 650_000, pct: 35, color: "#FF6B6B" },
-  { emoji: "🛍️", vi: "Mua sắm",   en: "Shopping",  amount: 520_000, pct: 28, color: "#F5A623" },
-  { emoji: "📑", vi: "Hóa đơn",   en: "Bills",     amount: 370_000, pct: 20, color: "#4ECDC4" },
-  { emoji: "🚌", vi: "Di chuyển", en: "Transport", amount: 185_000, pct: 10, color: "#A78BFA" },
-  { emoji: "💊", vi: "Sức khỏe",  en: "Health",    amount: 115_000, pct:  6, color: "#2ECC9A" },
-];
-
-interface Tip { id: string; emoji: string; vi: string; en: string; }
-
-const TIPS: Tip[] = [
-  {
-    id: "t1", emoji: "🥗",
-    vi: "Chuẩn bị bữa ăn vào Chủ nhật có thể tiết kiệm tới 800.000 đ/tháng.",
-    en: "Meal-prepping on Sundays could save you up to 800,000 đ/month.",
-  },
-  {
-    id: "t2", emoji: "📱",
-    vi: "Hủy các đăng ký không dùng — bạn có 3 ứng dụng chưa mở trong 60 ngày.",
-    en: "Cancel unused subscriptions — you have 3 apps unopened in 60 days.",
-  },
-  {
-    id: "t3", emoji: "💰",
-    vi: "Chuyển 10% lương mỗi tháng sang tài khoản tiết kiệm ngay khi nhận lương.",
-    en: "Transfer 10% of your salary to savings the day you receive it.",
-  },
-];
-
-const PRESETS = [
-  { vi: "Tôi đang chi tiêu như thế nào?", en: "How am I spending?" },
-  { vi: "Tôi có thể tiết kiệm thêm không?", en: "Can I save more?" },
-  { vi: "Đề xuất ngân sách tháng tới",     en: "Suggest next month's budget" },
-];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-function InsightCardView({ card, lang }: { card: InsightCard; lang: "vi" | "en" }) {
-  const bg     = card.tag === "positive" ? COLORS.incomeBg : card.tag === "warning" ? COLORS.warnBg : "#F0F5F3";
-  const border = card.tag === "positive" ? COLORS.income   : card.tag === "warning" ? COLORS.warn   : COLORS.border;
-
+function InsightCardView({ card, lang }: { card: api.InsightCard; lang: "vi" | "en" }) {
+  const bg     = card.tag === "positive" ? COLORS.incomeBg : card.tag === "warning" ? COLORS.warnBg  : "#F0F5F3";
+  const border = card.tag === "positive" ? COLORS.income   : card.tag === "warning" ? COLORS.warn    : COLORS.border;
   return (
     <View style={[styles.insightCard, { backgroundColor: bg, borderColor: border }]}>
       <Text style={styles.insightEmoji}>{card.emoji}</Text>
       <Text style={styles.insightTitle}>{lang === "vi" ? card.titleVi : card.titleEn}</Text>
-      <Text style={styles.insightBody}>{lang === "vi" ? card.bodyVi  : card.bodyEn}</Text>
+      <Text style={styles.insightBody}>{lang === "vi"  ? card.bodyVi  : card.bodyEn}</Text>
     </View>
   );
 }
 
-function SpendRow({ cat, last, lang }: { cat: SpendCat; last: boolean; lang: "vi" | "en" }) {
+function SpendRow({ cat, last, lang }: { cat: api.SpendCategory; last: boolean; lang: "vi" | "en" }) {
   return (
     <View style={[styles.spendRow, !last && styles.spendRowBorder]}>
       <Text style={styles.spendEmoji}>{cat.emoji}</Text>
@@ -163,57 +72,126 @@ function SpendRow({ cat, last, lang }: { cat: SpendCat; last: boolean; lang: "vi
   );
 }
 
+const PRESETS = [
+  { vi: "Tôi đang chi tiêu như thế nào?", en: "How am I spending?" },
+  { vi: "Tôi có thể tiết kiệm thêm không?", en: "Can I save more?" },
+  { vi: "Đề xuất ngân sách tháng tới",     en: "Suggest next month's budget" },
+];
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function AIAssistantScreen() {
   const { lang } = useLanguage();
-  const [query, setQuery] = useState("");
-  const band = scoreBand(HEALTH_SCORE, lang);
-
   const s = (vi: string, en: string) => lang === "vi" ? vi : en;
 
-  const handleSend = () => setQuery("");
+  // ── Data state
+  const [overview, setOverview]   = useState<api.AIOverview | null>(null);
+  const [loading,  setLoading]    = useState(true);
+  const [error,    setError]      = useState<string | null>(null);
 
-  const totalSpend = SPEND_CATS.reduce((sum, c) => sum + c.amount, 0);
+  // ── Chat state
+  const [query,       setQuery]       = useState("");
+  const [messages,    setMessages]    = useState<ChatMessage[]>([]);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.getAIOverview();
+        setOverview(data);
+      } catch (e: any) {
+        setError(e.message ?? "Không thể tải dữ liệu AI");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSend = async () => {
+    const trimmed = query.trim();
+    if (!trimmed || aiLoading) return;
+
+    const userMsg: ChatMessage = { role: "user", text: trimmed };
+    setMessages((prev) => [...prev, userMsg]);
+    setQuery("");
+    setAiLoading(true);
+
+    try {
+      const res = await api.chatWithAI(trimmed, lang);
+      setMessages((prev) => [...prev, { role: "ai", text: res.reply }]);
+    } catch (e: any) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", text: s("Xảy ra lỗi, thử lại nhé.", "Something went wrong, please try again.") },
+      ]);
+    } finally {
+      setAiLoading(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  };
+
+  // ── Loading screen
+  if (loading) {
+    return (
+      <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
+      </View>
+    );
+  }
+
+  // ── Error screen
+  if (error || !overview) {
+    return (
+      <View style={[styles.root, { justifyContent: "center", alignItems: "center", padding: SP.lg }]}>
+        <Text style={{ fontSize: 40, marginBottom: SP.md }}>⚠️</Text>
+        <Text style={{ fontSize: 15, fontWeight: "700", color: COLORS.textPrimary, textAlign: "center" }}>
+          {s("Không thể tải dữ liệu", "Failed to load data")}
+        </Text>
+        <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: SP.sm, textAlign: "center" }}>
+          {error}
+        </Text>
+      </View>
+    );
+  }
+
+  const band       = scoreBand(overview.healthScore, lang);
+  const totalSpend = overview.spendingBreakdown.reduce((s, c) => s + c.amount, 0);
+  const now        = new Date();
+  const monthLabel = s(`Tháng ${now.getMonth() + 1}, ${now.getFullYear()}`, `${now.toLocaleString("en", { month: "long" })} ${now.getFullYear()}`);
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.heroBg} />
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ════ HERO ════ */}
+        {/* HERO */}
         <View style={styles.hero}>
           <View style={styles.aiBadge}>
-            <Text style={styles.aiBadgeText}>
-              ✦ {s("Trợ lý AI", "AI Advisor")}
-            </Text>
+            <Text style={styles.aiBadgeText}>✦ {s("Trợ lý AI", "AI Advisor")}</Text>
           </View>
-
-          <Text style={styles.heroTitle}>
-            {s("Tổng quan Tài chính", "Financial Snapshot")}
-          </Text>
+          <Text style={styles.heroTitle}>{s("Tổng quan Tài chính", "Financial Snapshot")}</Text>
 
           {/* Health score */}
           <View style={styles.scoreRow}>
             <View style={styles.scoreLeft}>
-              <Text style={[styles.scoreNumber, { color: band.color }]}>{HEALTH_SCORE}</Text>
+              <Text style={[styles.scoreNumber, { color: band.color }]}>{overview.healthScore}</Text>
               <Text style={styles.scoreOutOf}>/100</Text>
             </View>
             <View style={styles.scoreRight}>
               <Text style={[styles.scoreBandText, { color: band.color }]}>{band.label}</Text>
-              <Text style={styles.scoreDesc}>
-                {s("Điểm sức khỏe tài chính", "Financial health score")}
-              </Text>
+              <Text style={styles.scoreDesc}>{s("Điểm sức khoẻ tài chính", "Financial health score")}</Text>
               <View style={styles.scoreBarRow}>
                 {Array.from({ length: 10 }).map((_, i) => (
                   <View
                     key={i}
                     style={[
                       styles.scoreBarSeg,
-                      i < Math.round(HEALTH_SCORE / 10)
+                      i < Math.round(overview.healthScore / 10)
                         ? { backgroundColor: band.color }
                         : { backgroundColor: COLORS.heroDeep },
                     ]}
@@ -226,88 +204,58 @@ export default function AIAssistantScreen() {
           {/* Key stats */}
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatVal}>18%</Text>
+              <Text style={styles.heroStatVal}>{overview.savingsRate}%</Text>
               <Text style={styles.heroStatLbl}>{s("Tiết kiệm", "Savings rate")}</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={[styles.heroStatVal, { color: COLORS.expense }]}>+35%</Text>
-              <Text style={styles.heroStatLbl}>{s("Ăn uống", "Food vs last mo.")}</Text>
+              <Text style={styles.heroStatVal}>{fmtVND(overview.totalIncome)}</Text>
+              <Text style={styles.heroStatLbl}>{s("Thu nhập", "Income")}</Text>
             </View>
             <View style={styles.heroStatDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatVal}>{s("T8/25", "Aug/25")}</Text>
-              <Text style={styles.heroStatLbl}>{s("Mục tiêu", "Goal ETA")}</Text>
+              <Text style={[styles.heroStatVal, { color: COLORS.expense }]}>{fmtVND(overview.totalExpense)}</Text>
+              <Text style={styles.heroStatLbl}>{s("Chi tiêu", "Expense")}</Text>
             </View>
           </View>
         </View>
 
-        {/* ════ INSIGHT CARDS (horizontal scroll) ════ */}
-        <View style={styles.sectionOuter}>
-          <Text style={styles.sectionTitle}>
-            {s("Phân tích AI", "AI Insights")}
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.insightScrollContent}
-          >
-            {INSIGHTS.map((card) => (
-              <InsightCardView key={card.id} card={card} lang={lang} />
+        {/* INSIGHT CARDS */}
+        {overview.insights.length > 0 && (
+          <View style={styles.sectionOuter}>
+            <Text style={styles.sectionTitle}>{s("Phân tích AI", "AI Insights")}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.insightScrollContent}
+            >
+              {overview.insights.map((card) => (
+                <InsightCardView key={card.id} card={card} lang={lang} />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* SPENDING BREAKDOWN */}
+        {overview.spendingBreakdown.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{s("Phân bổ chi tiêu", "Spending Breakdown")}</Text>
+            <Text style={styles.cardSub}>{monthLabel} — {s("Tổng:", "Total:")} {fmtVND(totalSpend)}</Text>
+            {overview.spendingBreakdown.map((cat, i) => (
+              <SpendRow key={cat.en} cat={cat} last={i === overview.spendingBreakdown.length - 1} lang={lang} />
             ))}
-          </ScrollView>
-        </View>
-
-        {/* ════ SPENDING BREAKDOWN ════ */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {s("Phân bổ chi tiêu", "Spending Breakdown")}
-          </Text>
-          <Text style={styles.cardSub}>
-            {s("Tháng 5, 2025", "May 2025")} — {s("Tổng:", "Total:")} {fmtVND(totalSpend)}
-          </Text>
-          {SPEND_CATS.map((cat, i) => (
-            <SpendRow key={cat.en} cat={cat} last={i === SPEND_CATS.length - 1} lang={lang} />
-          ))}
-        </View>
-
-        {/* ════ AI TIPS ════ */}
-        <View style={styles.card}>
-          <View style={styles.tipsHeader}>
-            <Text style={styles.cardTitle}>
-              {s("Gợi ý từ AI", "AI Recommendations")}
-            </Text>
-            <View style={styles.tipsBadge}>
-              <Text style={styles.tipsBadgeText}>{TIPS.length} tips</Text>
-            </View>
           </View>
+        )}
 
-          {TIPS.map((tip, i) => (
-            <View key={tip.id} style={[styles.tipRow, i < TIPS.length - 1 && styles.tipRowBorder]}>
-              <View style={styles.tipEmojiWrap}>
-                <Text style={styles.tipEmoji}>{tip.emoji}</Text>
-              </View>
-              <Text style={styles.tipText}>{lang === "vi" ? tip.vi : tip.en}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* ════ CONSULT AI ════ */}
+        {/* AI CHAT */}
         <View style={styles.consultCard}>
           <View style={styles.consultHeader}>
             <View style={styles.consultAIIcon}>
               <Text style={styles.consultAIIconText}>✦</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.consultTitle}>
-                {s("Tư vấn AI", "Ask AI Advisor")}
-              </Text>
-              <Text style={styles.consultSub}>
-                {s(
-                  "Đặt câu hỏi về tài chính của bạn",
-                  "Ask anything about your finances",
-                )}
-              </Text>
+              <Text style={styles.consultTitle}>{s("Tư vấn AI", "Ask AI Advisor")}</Text>
+              <Text style={styles.consultSub}>{s("Đặt câu hỏi về tài chính của bạn", "Ask anything about your finances")}</Text>
             </View>
           </View>
 
@@ -325,25 +273,51 @@ export default function AIAssistantScreen() {
             ))}
           </View>
 
-          {/* Input */}
+          {/* Conversation messages */}
+          {messages.length > 0 && (
+            <View style={styles.messagesWrap}>
+              {messages.map((msg, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.msgBubble,
+                    msg.role === "user" ? styles.msgBubbleUser : styles.msgBubbleAI,
+                  ]}
+                >
+                  <Text style={msg.role === "user" ? styles.msgTextUser : styles.msgTextAI}>
+                    {msg.text}
+                  </Text>
+                </View>
+              ))}
+              {aiLoading && (
+                <View style={[styles.msgBubble, styles.msgBubbleAI]}>
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Input row */}
           <View style={styles.inputRow}>
             <TextInput
               style={styles.consultInput}
-              placeholder={s(
-                "Nhập câu hỏi của bạn...",
-                "Type your question...",
-              )}
+              placeholder={s("Nhập câu hỏi của bạn...", "Type your question...")}
               placeholderTextColor={COLORS.textOnDarkMuted}
               value={query}
               onChangeText={setQuery}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
             />
             <TouchableOpacity
-              style={[styles.sendBtn, !query.trim() && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, (!query.trim() || aiLoading) && styles.sendBtnDisabled]}
               onPress={handleSend}
               activeOpacity={0.8}
-              disabled={!query.trim()}
+              disabled={!query.trim() || aiLoading}
             >
-              <Text style={styles.sendBtnText}>↑</Text>
+              {aiLoading
+                ? <ActivityIndicator size="small" color={COLORS.heroBg} />
+                : <Text style={styles.sendBtnText}>↑</Text>
+              }
             </TouchableOpacity>
           </View>
 
@@ -364,330 +338,85 @@ export default function AIAssistantScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.pageBg },
+  root:          { flex: 1, backgroundColor: COLORS.pageBg },
   scrollContent: { paddingBottom: 120 },
 
-  // ── Hero ────────────────────────────────────────────────────────────────────
   hero: {
     backgroundColor: COLORS.heroBg,
     paddingTop: Platform.OS === "ios" ? 58 : 46,
-    paddingHorizontal: SP.lg,
-    paddingBottom: SP.xl,
-    borderBottomLeftRadius: R.xl,
-    borderBottomRightRadius: R.xl,
+    paddingHorizontal: SP.lg, paddingBottom: SP.xl,
+    borderBottomLeftRadius: R.xl, borderBottomRightRadius: R.xl,
   },
-  aiBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: SP.sm + 4,
-    paddingVertical: SP.xs + 1,
-    borderRadius: R.xl,
-    marginBottom: SP.md,
-  },
-  aiBadgeText: {
-    color: COLORS.heroBg,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: COLORS.textOnDark,
-    marginBottom: SP.lg,
-    letterSpacing: -0.3,
-  },
+  aiBadge:     { alignSelf: "flex-start", backgroundColor: COLORS.accent, paddingHorizontal: SP.sm + 4, paddingVertical: SP.xs + 1, borderRadius: R.xl, marginBottom: SP.md },
+  aiBadgeText: { color: COLORS.heroBg, fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
+  heroTitle:   { fontSize: 22, fontWeight: "800", color: COLORS.textOnDark, marginBottom: SP.lg, letterSpacing: -0.3 },
 
-  scoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.heroSub,
-    borderRadius: R.md,
-    padding: SP.md,
-    marginBottom: SP.md,
-    gap: SP.md,
-  },
-  scoreLeft: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    flexShrink: 0,
-  },
-  scoreNumber: {
-    fontSize: 52,
-    fontWeight: "800",
-    lineHeight: 58,
-    letterSpacing: -2,
-  },
-  scoreOutOf: {
-    fontSize: 16,
-    color: COLORS.textOnDarkMuted,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  scoreRight: { flex: 1, gap: SP.xs },
+  scoreRow:      { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.heroSub, borderRadius: R.md, padding: SP.md, marginBottom: SP.md, gap: SP.md },
+  scoreLeft:     { flexDirection: "row", alignItems: "flex-end", flexShrink: 0 },
+  scoreNumber:   { fontSize: 52, fontWeight: "800", lineHeight: 58, letterSpacing: -2 },
+  scoreOutOf:    { fontSize: 16, color: COLORS.textOnDarkMuted, fontWeight: "600", marginBottom: 8 },
+  scoreRight:    { flex: 1, gap: SP.xs },
   scoreBandText: { fontSize: 14, fontWeight: "800", lineHeight: 20 },
-  scoreDesc: {
-    fontSize: 10,
-    color: COLORS.textOnDarkMuted,
-    lineHeight: 15,
-    fontWeight: "400",
-  },
-  scoreBarRow: { flexDirection: "row", gap: 3, marginTop: SP.xs },
-  scoreBarSeg: { flex: 1, height: 6, borderRadius: 3 },
+  scoreDesc:     { fontSize: 10, color: COLORS.textOnDarkMuted, lineHeight: 15, fontWeight: "400" },
+  scoreBarRow:   { flexDirection: "row", gap: 3, marginTop: SP.xs },
+  scoreBarSeg:   { flex: 1, height: 6, borderRadius: 3 },
 
-  heroStats: {
-    flexDirection: "row",
-    backgroundColor: COLORS.heroSub,
-    borderRadius: R.md,
-    paddingVertical: SP.md,
-  },
-  heroStat: { flex: 1, alignItems: "center" },
-  heroStatVal: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: COLORS.textOnDark,
-  },
-  heroStatLbl: {
-    fontSize: 9,
-    color: COLORS.textOnDarkMuted,
-    fontWeight: "500",
-    textAlign: "center",
-    marginTop: 3,
-  },
-  heroStatDivider: {
-    width: 1,
-    height: 34,
-    alignSelf: "center",
-    backgroundColor: "#2E4A44",
-  },
+  heroStats:       { flexDirection: "row", backgroundColor: COLORS.heroSub, borderRadius: R.md, paddingVertical: SP.md },
+  heroStat:        { flex: 1, alignItems: "center" },
+  heroStatVal:     { fontSize: 14, fontWeight: "800", color: COLORS.textOnDark },
+  heroStatLbl:     { fontSize: 9, color: COLORS.textOnDarkMuted, fontWeight: "500", textAlign: "center", marginTop: 3 },
+  heroStatDivider: { width: 1, height: 34, alignSelf: "center", backgroundColor: "#2E4A44" },
 
-  // ── Shared card ──────────────────────────────────────────────────────────────
-  card: {
-    backgroundColor: COLORS.cardBg,
-    marginHorizontal: SP.md,
-    marginTop: SP.md,
-    borderRadius: R.lg,
-    padding: SP.lg,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SP.xs,
-  },
-  cardSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: "500",
-    marginBottom: SP.md,
-  },
+  card:      { backgroundColor: COLORS.cardBg, marginHorizontal: SP.md, marginTop: SP.md, borderRadius: R.lg, padding: SP.lg, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.xs },
+  cardSub:   { fontSize: 11, color: COLORS.textMuted, fontWeight: "500", marginBottom: SP.md },
 
-  // ── Insight cards ────────────────────────────────────────────────────────────
-  sectionOuter: { marginTop: SP.md },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SP.sm,
-    paddingHorizontal: SP.md,
-  },
-  insightScrollContent: {
-    paddingHorizontal: SP.md,
-    gap: SP.sm,
-    flexDirection: "row",
-    paddingBottom: SP.sm,
-  },
-  insightCard: {
-    width: 220,
-    borderRadius: R.lg,
-    padding: SP.md,
-    borderWidth: 1.5,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
+  sectionOuter:        { marginTop: SP.md },
+  sectionTitle:        { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.sm, paddingHorizontal: SP.md },
+  insightScrollContent: { paddingHorizontal: SP.md, gap: SP.sm, flexDirection: "row", paddingBottom: SP.sm },
+  insightCard:  { width: 220, borderRadius: R.lg, padding: SP.md, borderWidth: 1.5, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   insightEmoji: { fontSize: 24, marginBottom: SP.sm },
-  insightTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SP.xs,
-  },
-  insightBody: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-  },
+  insightTitle: { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.xs },
+  insightBody:  { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
 
-  // ── Spending rows ────────────────────────────────────────────────────────────
-  spendRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: SP.sm + 4,
-    gap: SP.sm,
-  },
-  spendRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  spendEmoji: { fontSize: 20, flexShrink: 0 },
-  spendInfo: { flex: 1 },
-  spendName: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SP.xs,
-  },
-  spendBarTrack: {
-    height: 5,
-    backgroundColor: COLORS.border,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  spendBarFill: { height: "100%", borderRadius: 3 },
-  spendRight: { alignItems: "flex-end", flexShrink: 0 },
-  spendAmt: { fontSize: 11, fontWeight: "700", color: COLORS.textPrimary },
-  spendPct: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: "500",
-    marginTop: 1,
-  },
+  spendRow:       { flexDirection: "row", alignItems: "center", paddingVertical: SP.sm + 4, gap: SP.sm },
+  spendRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  spendEmoji:     { fontSize: 20, flexShrink: 0 },
+  spendInfo:      { flex: 1 },
+  spendName:      { fontSize: 12, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.xs },
+  spendBarTrack:  { height: 5, backgroundColor: COLORS.border, borderRadius: 3, overflow: "hidden" },
+  spendBarFill:   { height: "100%", borderRadius: 3 },
+  spendRight:     { alignItems: "flex-end", flexShrink: 0 },
+  spendAmt:       { fontSize: 11, fontWeight: "700", color: COLORS.textPrimary },
+  spendPct:       { fontSize: 10, color: COLORS.textMuted, fontWeight: "500", marginTop: 1 },
 
-  // ── Tips ─────────────────────────────────────────────────────────────────────
-  tipsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: SP.xs,
-  },
-  tipsBadge: {
-    backgroundColor: COLORS.accentSoft,
-    paddingHorizontal: SP.sm,
-    paddingVertical: 2,
-    borderRadius: R.xl,
-  },
-  tipsBadgeText: { fontSize: 11, fontWeight: "700", color: COLORS.incomeText },
-  tipRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: SP.md,
-    gap: SP.sm,
-  },
-  tipRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  tipEmojiWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: R.sm,
-    backgroundColor: COLORS.accentSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  tipEmoji: { fontSize: 18 },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    lineHeight: 19,
-  },
-
-  // ── Consult AI ───────────────────────────────────────────────────────────────
   consultCard: {
-    backgroundColor: COLORS.heroBg,
-    marginHorizontal: SP.md,
-    marginTop: SP.md,
-    borderRadius: R.lg,
-    padding: SP.lg,
-    shadowColor: COLORS.heroBg,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: COLORS.heroBg, marginHorizontal: SP.md, marginTop: SP.md,
+    borderRadius: R.lg, padding: SP.lg,
+    shadowColor: COLORS.heroBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
   },
-  consultHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: SP.md,
-    marginBottom: SP.lg,
-  },
-  consultAIIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  consultAIIconText: { fontSize: 20, color: COLORS.heroBg, fontWeight: "800" },
-  consultTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: COLORS.textOnDark,
-    marginBottom: 2,
-  },
-  consultSub: {
-    fontSize: 11,
-    color: COLORS.textOnDarkMuted,
-    lineHeight: 16,
-    fontWeight: "400",
-  },
+  consultHeader:      { flexDirection: "row", alignItems: "flex-start", gap: SP.md, marginBottom: SP.lg },
+  consultAIIcon:      { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.accent, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  consultAIIconText:  { fontSize: 20, color: COLORS.heroBg, fontWeight: "800" },
+  consultTitle:       { fontSize: 16, fontWeight: "800", color: COLORS.textOnDark, marginBottom: 2 },
+  consultSub:         { fontSize: 11, color: COLORS.textOnDarkMuted, lineHeight: 16, fontWeight: "400" },
 
-  presetRow: { gap: SP.sm, marginBottom: SP.md },
-  presetChip: {
-    backgroundColor: COLORS.heroSub,
-    borderRadius: R.md,
-    paddingHorizontal: SP.md,
-    paddingVertical: SP.sm,
-    borderWidth: 1,
-    borderColor: "#2E4A44",
-  },
+  presetRow:  { gap: SP.sm, marginBottom: SP.md },
+  presetChip: { backgroundColor: COLORS.heroSub, borderRadius: R.md, paddingHorizontal: SP.md, paddingVertical: SP.sm, borderWidth: 1, borderColor: "#2E4A44" },
   presetText: { fontSize: 12, fontWeight: "600", color: COLORS.textOnDark },
 
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SP.sm,
-    marginBottom: SP.md,
-  },
-  consultInput: {
-    flex: 1,
-    backgroundColor: COLORS.heroSub,
-    borderRadius: R.md,
-    paddingHorizontal: SP.md,
-    paddingVertical: SP.sm + 4,
-    fontSize: 14,
-    color: COLORS.textOnDark,
-    borderWidth: 1,
-    borderColor: "#2E4A44",
-  },
-  sendBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: COLORS.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { fontSize: 20, color: COLORS.heroBg, fontWeight: "800" },
+  messagesWrap: { marginBottom: SP.md, gap: SP.sm },
+  msgBubble:    { maxWidth: "85%", paddingHorizontal: SP.md, paddingVertical: SP.sm + 2, borderRadius: R.md },
+  msgBubbleUser: { alignSelf: "flex-end", backgroundColor: COLORS.accent },
+  msgBubbleAI:   { alignSelf: "flex-start", backgroundColor: COLORS.heroSub, borderWidth: 1, borderColor: "#2E4A44" },
+  msgTextUser:   { fontSize: 13, fontWeight: "600", color: COLORS.heroBg },
+  msgTextAI:     { fontSize: 13, fontWeight: "500", color: COLORS.textOnDark, lineHeight: 19 },
 
-  disclaimer: {
-    fontSize: 9,
-    color: COLORS.textOnDarkDeep,
-    lineHeight: 14,
-    textAlign: "center",
-    fontWeight: "400",
-    letterSpacing: 0.1,
-  },
+  inputRow:      { flexDirection: "row", alignItems: "center", gap: SP.sm, marginBottom: SP.md },
+  consultInput:  { flex: 1, backgroundColor: COLORS.heroSub, borderRadius: R.md, paddingHorizontal: SP.md, paddingVertical: SP.sm + 4, fontSize: 14, color: COLORS.textOnDark, borderWidth: 1, borderColor: "#2E4A44" },
+  sendBtn:        { width: 46, height: 46, borderRadius: 23, backgroundColor: COLORS.accent, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  sendBtnDisabled: { opacity: 0.4 },
+  sendBtnText:    { fontSize: 20, color: COLORS.heroBg, fontWeight: "800" },
+
+  disclaimer: { fontSize: 9, color: COLORS.textOnDarkDeep, lineHeight: 14, textAlign: "center", fontWeight: "400", letterSpacing: 0.1 },
 });
