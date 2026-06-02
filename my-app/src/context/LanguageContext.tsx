@@ -4,6 +4,7 @@ export type Lang = "vi" | "en";
 
 export interface AppStrings {
   navHome: string;
+  navChart: string;
   navAdd: string;
   navAI: string;
   navSettings: string;
@@ -57,7 +58,8 @@ export interface AppStrings {
 
 const VI: AppStrings = {
   navHome: "Trang chủ",
-  navAdd: "Nhập liệu",
+  navChart: "Biểu đồ",
+  navAdd: "Ngân sách",
   navAI: "Trợ lý AI",
   navSettings: "Cài đặt",
 
@@ -116,7 +118,8 @@ const VI: AppStrings = {
 
 const EN: AppStrings = {
   navHome: "Home",
-  navAdd: "Add",
+  navChart: "Charts",
+  navAdd: "Budget",
   navAI: "AI Advisor",
   navSettings: "Settings",
 

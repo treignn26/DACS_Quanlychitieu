@@ -89,7 +89,18 @@ function AppTabs() {
         }}
       />
 
-      {/* ── Tab 2: Nhập liệu / Add ── */}
+      {/* ── Tab 2: Biểu đồ / Charts ── */}
+      <Tabs.Screen
+        name="charts"
+        options={{
+          tabBarIcon: ({ focused }) => <NavIcon emoji="📊" focused={focused} />,
+          tabBarLabel: ({ color }) => (
+            <NavLabel label={t.navChart} color={color} />
+          ),
+        }}
+      />
+
+      {/* ── Tab 3: Nhập liệu / Add ── */}
       <Tabs.Screen
         name="add-transaction"
         options={{
@@ -101,7 +112,7 @@ function AppTabs() {
         }}
       />
 
-      {/* ── Tab 3: Trợ lý AI / AI Advisor ── */}
+      {/* ── Tab 4: Trợ lý AI / AI Advisor ── */}
       <Tabs.Screen
         name="ai-assistant"
         options={{
@@ -112,7 +123,7 @@ function AppTabs() {
         }}
       />
 
-      {/* ── Tab 4: Cài đặt / Settings ── */}
+      {/* ── Tab 5: Cài đặt / Settings ── */}
       <Tabs.Screen
         name="settings"
         options={{

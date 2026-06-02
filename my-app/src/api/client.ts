@@ -27,6 +27,27 @@ export interface Profile {
   monthlyBudget: number;
 }
 
+export interface BarItem {
+  key: string | number; // "YYYY-MM-DD" | month 1-12 | year e.g. 2024
+  income: number;
+  expense: number;
+}
+
+export interface ChartCategory {
+  emoji: string;
+  vi: string;
+  en: string;
+  amount: number;
+  pct: number;
+}
+
+export interface ChartData {
+  period: "day" | "month" | "year";
+  bars: BarItem[];
+  categories: ChartCategory[];
+  summary: { totalIncome: number; totalExpense: number };
+}
+
 export interface InsightCard {
   id: string;
   emoji: string;
@@ -114,6 +135,11 @@ export const chatWithAI = (query: string, lang: "vi" | "en") =>
     method: "POST",
     body: JSON.stringify({ query, lang }),
   });
+
+// ─── Charts ──────────────────────────────────────────────────────────────────
+
+export const getChartData = (period: "day" | "month" | "year") =>
+  apiFetch<ChartData>(`/api/charts/data?period=${period}`);
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 

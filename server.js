@@ -7,6 +7,7 @@ const homeRoutes           = require("./routes/homeRoutes");
 const addTransactionRoutes = require("./routes/addTransactionRoutes");
 const aiRoutes             = require("./routes/aiRoutes");
 const settingsRoutes       = require("./routes/settingsRoutes");
+const chartRoutes          = require("./routes/chartRoutes");
 const errorHandler         = require("./middleware/errorHandler");
 
 const app  = express();
@@ -31,6 +32,9 @@ app.use("/api/ai", aiRoutes);
 
 // Tab 4 — Settings
 app.use("/api/settings", settingsRoutes);
+
+// Tab 2 — Charts
+app.use("/api/charts", chartRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
