@@ -16,8 +16,6 @@ export interface Summary {
   totalIncome: number;
   totalExpense: number;
   balance: number;
-  monthlyBudget: number;
-  budgetPct: number;
 }
 
 export interface Profile {
@@ -200,7 +198,6 @@ export const getProfile = () =>
 export const updateProfile = (data: {
   name?: string;
   email?: string;
-  monthlyBudget?: number;
 }) =>
   apiFetch<Profile>("/api/settings/profile", {
     method: "PUT",

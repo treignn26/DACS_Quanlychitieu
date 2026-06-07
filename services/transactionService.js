@@ -52,8 +52,8 @@ const deleteTransaction = async (id) => {
   return Transaction.findByIdAndDelete(id);
 };
 
-// Tính tổng kết tháng: thu nhập, chi tiêu, số dư, % ngân sách
-const computeSummary = async (monthlyBudget) => {
+// Tính tổng kết tháng: thu nhập, chi tiêu, số dư
+const computeSummary = async () => {
   const transactions = await getThisMonthTransactions();
 
   const totalIncome = transactions
@@ -65,12 +65,8 @@ const computeSummary = async (monthlyBudget) => {
     .reduce((sum, t) => sum + t.amount, 0);
 
   const balance = totalIncome - totalExpense;
-  const budgetPct =
-    monthlyBudget > 0
-      ? Math.min(Math.round((totalExpense / monthlyBudget) * 100), 100)
-      : 0;
 
-  return { totalIncome, totalExpense, balance, monthlyBudget, budgetPct };
+  return { totalIncome, totalExpense, balance };
 };
 
 // Xoá toàn bộ giao dịch

@@ -151,10 +151,9 @@ export default function SettingsScreen() {
   const { lang, setLang, t } = useLanguage();
 
   // ── Profile state từ API
-  const [name,          setName]          = useState("");
-  const [email,         setEmail]         = useState("");
-  const [monthlyBudget, setMonthlyBudget] = useState("10000000");
-  const [editing,       setEditing]       = useState(false);
+  const [name,    setName]    = useState("");
+  const [email,   setEmail]   = useState("");
+  const [editing, setEditing] = useState(false);
 
   // ── UI states
   const [loading,    setLoading]    = useState(true);
@@ -169,7 +168,6 @@ export default function SettingsScreen() {
         const profile = await api.getProfile();
         setName(profile.name);
         setEmail(profile.email);
-        setMonthlyBudget(String(profile.monthlyBudget));
       } catch {
         // Keep defaults
       } finally {
@@ -182,11 +180,7 @@ export default function SettingsScreen() {
     Keyboard.dismiss();
     setSaving(true);
     try {
-      await api.updateProfile({
-        name,
-        email,
-        monthlyBudget: Number(monthlyBudget.replace(/\D/g, "")),
-      });
+      await api.updateProfile({ name, email });
       setEditing(false);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 2000);
@@ -257,14 +251,6 @@ export default function SettingsScreen() {
         <Section title={t.settProfile}>
           <ProfileField label={t.settName}  value={name}  placeholder={t.settNamePH}  onChange={setName}  editing={editing} />
           <ProfileField label={t.settEmail} value={email} placeholder={t.settEmailPH} onChange={setEmail} editing={editing} keyboardType="email-address" />
-          <ProfileField
-            label={lang === "vi" ? "Ngân sách tháng (đ)" : "Monthly Budget (đ)"}
-            value={Number(monthlyBudget).toLocaleString("vi-VN")}
-            placeholder="10,000,000"
-            onChange={(v) => setMonthlyBudget(v.replace(/\D/g, ""))}
-            editing={editing}
-            keyboardType="numeric"
-          />
           {editing && (
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
               {saving

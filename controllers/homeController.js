@@ -1,5 +1,4 @@
 const transactionService = require("../services/transactionService");
-const profileService = require("../services/profileService");
 
 // GET /api/home/transactions
 // Query: ?type=all|income|expense  &date=YYYY-MM-DD  &month=MM&year=YYYY
@@ -19,11 +18,10 @@ const getTransactions = async (req, res, next) => {
 };
 
 // GET /api/home/summary
-// Trả về tổng thu, tổng chi, số dư, % ngân sách của tháng hiện tại
+// Trả về tổng thu, tổng chi, số dư của tháng hiện tại
 const getSummary = async (req, res, next) => {
   try {
-    const profile = await profileService.getProfile();
-    const summary = await transactionService.computeSummary(profile.monthlyBudget);
+    const summary = await transactionService.computeSummary();
     res.json({ success: true, data: summary });
   } catch (err) {
     next(err);

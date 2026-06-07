@@ -11,10 +11,13 @@ import {
   Platform,
   ActivityIndicator,
   ListRenderItemInfo,
+  Modal,
+  Animated,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useLanguage } from "../context/LanguageContext";
 import CalendarModal from "../components/CalendarModal";
+import SwipeableRow from "../components/SwipeableRow";
 import * as api from "../api/client";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -121,18 +124,10 @@ function TxRow({ tx, lang }: TxRowProps) {
 
 const row = StyleSheet.create({
   wrap: {
-    flexDirection:    "row",
-    alignItems:       "center",
-    backgroundColor:  COLORS.cardBg,
-    marginHorizontal: SP.md,
-    marginBottom:     SP.sm,
-    borderRadius:     R.lg,
-    padding:          SP.md,
-    shadowColor:      "#1A2422",
-    shadowOffset:     { width: 0, height: 1 },
-    shadowOpacity:    0.06,
-    shadowRadius:     4,
-    elevation:        2,
+    flexDirection:   "row",
+    alignItems:      "center",
+    backgroundColor: COLORS.cardBg,
+    padding:         SP.md,
   },
   iconCircle: {
     width:          44,
@@ -186,7 +181,7 @@ export default function HomeScreen() {
   // ── Data state từ API
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [summary, setSummary]           = useState<api.Summary>({
-    totalIncome: 0, totalExpense: 0, balance: 0, monthlyBudget: 10_000_000, budgetPct: 0,
+    totalIncome: 0, totalExpense: 0, balance: 0,
   });
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
@@ -195,6 +190,48 @@ export default function HomeScreen() {
   const [typeFilter,   setTypeFilter]   = useState<TxTypeFilter>("all");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showCal,      setShowCal]      = useState(false);
+
+  // ── Delete state
+  const [deletingTx,       setDeletingTx]       = useState<Tx | null>(null);
+  const [showDeleteModal,  setShowDeleteModal]  = useState(false);
+  const [isDeleting,       setIsDeleting]       = useState(false);
+  const [deleteError,      setDeleteError]      = useState<string | null>(null);
+  const deleteToastOpacity = React.useRef(new Animated.Value(0)).current;
+  const [showDeleteToast,  setShowDeleteToast]  = useState(false);
+
+  const triggerDeleteToast = () => {
+    setShowDeleteToast(true);
+    Animated.sequence([
+      Animated.timing(deleteToastOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.delay(1600),
+      Animated.timing(deleteToastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => setShowDeleteToast(false));
+  };
+
+  const requestDelete = (tx: Tx) => {
+    setDeletingTx(tx);
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingTx) return;
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      await api.deleteTransaction(deletingTx.id);
+      setTransactions((prev) => prev.filter((t) => t.id !== deletingTx.id));
+      const sum = await api.getSummary();
+      setSummary(sum);
+      setShowDeleteModal(false);
+      setDeletingTx(null);
+      triggerDeleteToast();
+    } catch (e: any) {
+      setDeleteError(e.message ?? "Xóa thất bại, thử lại.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // ── Fetch data — gọi lại mỗi lần tab được focus
   const fetchData = useCallback(async () => {
@@ -221,8 +258,10 @@ export default function HomeScreen() {
   );
 
   // ── Derived values từ summary
-  const { totalIncome, totalExpense, balance, monthlyBudget, budgetPct } = summary;
-  const budgetOver = budgetPct >= 80;
+  const { totalIncome, totalExpense, balance } = summary;
+  const barPct     = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
+  const barWidth   = Math.min(barPct, 100);   // thanh không vượt quá track
+  const budgetOver = barPct >= 100;
 
   // ── Filtered list (client-side)
   const filteredTx = useMemo<Tx[]>(() => {
@@ -334,19 +373,19 @@ export default function HomeScreen() {
         <View style={s.budgetHeaderRow}>
           <Text style={s.budgetLabel}>{t.homeBudgetTitle}</Text>
           <Text style={[s.budgetPct, { color: budgetOver ? COLORS.expenseText : COLORS.incomeText }]}>
-            {budgetPct}%
+            {barPct}%
           </Text>
         </View>
         <View style={s.budgetTrack}>
           <View
             style={[
               s.budgetFill,
-              { width: `${budgetPct}%` as any, backgroundColor: budgetOver ? COLORS.expense : COLORS.accent },
+              { width: `${barWidth}%` as any, backgroundColor: budgetOver ? COLORS.expense : COLORS.accent },
             ]}
           />
         </View>
         <Text style={s.budgetSub}>
-          {fmtVND(totalExpense)} / {fmtVND(monthlyBudget)}
+          {fmtVND(totalExpense)} / {fmtVND(totalIncome)}
         </Text>
       </View>
 
@@ -378,7 +417,11 @@ export default function HomeScreen() {
       <FlatList<Tx>
         data={filteredTx}
         keyExtractor={(item: Tx) => item.id}
-        renderItem={({ item }: ListRenderItemInfo<Tx>) => <TxRow tx={item} lang={lang} />}
+        renderItem={({ item }: ListRenderItemInfo<Tx>) => (
+          <SwipeableRow onDeleteRequest={() => requestDelete(item)}>
+            <TxRow tx={item} lang={lang} />
+          </SwipeableRow>
+        )}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={
           <EmptyState
@@ -398,6 +441,80 @@ export default function HomeScreen() {
         onClose={() => setShowCal(false)}
         txDates={txDates}
       />
+
+      {/* ── Delete confirmation modal ── */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <TouchableOpacity
+          style={s.modalOverlay}
+          activeOpacity={1}
+          onPress={() => !isDeleting && setShowDeleteModal(false)}
+        >
+          <TouchableOpacity style={s.modalCard} activeOpacity={1}>
+            <Text style={s.modalEmoji}>🗑️</Text>
+            <Text style={s.modalTitle}>
+              {lang === "vi" ? "Xóa giao dịch?" : "Delete Transaction?"}
+            </Text>
+
+            {deletingTx && (
+              <View style={s.modalTxPreview}>
+                <Text style={s.modalTxEmoji}>{deletingTx.category}</Text>
+                <View>
+                  <Text style={s.modalTxLabel}>{deletingTx.catLabel[lang]}</Text>
+                  <Text style={[
+                    s.modalTxAmount,
+                    { color: deletingTx.type === "income" ? COLORS.incomeText : COLORS.expenseText },
+                  ]}>
+                    {deletingTx.type === "income" ? "+" : "−"}{fmtVND(deletingTx.amount)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Text style={s.modalBody}>
+              {lang === "vi"
+                ? "Hành động này không thể hoàn tác."
+                : "This action cannot be undone."}
+            </Text>
+
+            {deleteError && (
+              <Text style={s.modalError}>⚠️ {deleteError}</Text>
+            )}
+
+            <View style={s.modalBtnRow}>
+              <TouchableOpacity
+                style={s.modalCancel}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+              >
+                <Text style={s.modalCancelTxt}>
+                  {lang === "vi" ? "Hủy" : "Cancel"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalConfirm, isDeleting && { opacity: 0.7 }]}
+                onPress={confirmDelete}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+              >
+                {isDeleting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.modalConfirmTxt}>{lang === "vi" ? "Xóa" : "Delete"}</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Delete success toast ── */}
+      {showDeleteToast && (
+        <Animated.View style={[s.toast, { opacity: deleteToastOpacity }]}>
+          <Text style={s.toastIcon}>✓</Text>
+          <Text style={s.toastTxt}>
+            {lang === "vi" ? "Đã xóa giao dịch" : "Transaction deleted"}
+          </Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -448,4 +565,26 @@ const s = StyleSheet.create({
   filterChipTxt:     { fontSize: 13, fontWeight: "600", color: COLORS.textSecondary },
   filterChipTxtActive: { color: COLORS.textOnDark },
   sectionTitle:      { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary, marginHorizontal: SP.md, marginBottom: SP.sm },
+
+  // ── Delete modal
+  modalOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: SP.lg },
+  modalCard:       { backgroundColor: COLORS.cardBg, borderRadius: R.xl, padding: SP.lg, width: "100%", alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 20, elevation: 12 },
+  modalEmoji:      { fontSize: 36, marginBottom: SP.sm },
+  modalTitle:      { fontSize: 18, fontWeight: "800", color: COLORS.textPrimary, marginBottom: SP.md, textAlign: "center" },
+  modalTxPreview:  { flexDirection: "row", alignItems: "center", gap: SP.sm, backgroundColor: COLORS.inputBg, borderRadius: R.md, paddingHorizontal: SP.md, paddingVertical: SP.sm, marginBottom: SP.md, width: "100%" },
+  modalTxEmoji:    { fontSize: 26 },
+  modalTxLabel:    { fontSize: 14, fontWeight: "600", color: COLORS.textPrimary },
+  modalTxAmount:   { fontSize: 13, fontWeight: "700", marginTop: 2 },
+  modalBody:       { fontSize: 13, color: COLORS.textSecondary, textAlign: "center", marginBottom: SP.sm },
+  modalError:      { fontSize: 13, color: COLORS.expenseText, textAlign: "center", marginBottom: SP.sm },
+  modalBtnRow:     { flexDirection: "row", gap: SP.sm, marginTop: SP.md, width: "100%" },
+  modalCancel:     { flex: 1, borderRadius: R.md, paddingVertical: SP.sm + 4, alignItems: "center", backgroundColor: COLORS.border },
+  modalCancelTxt:  { fontSize: 15, fontWeight: "700", color: COLORS.textSecondary },
+  modalConfirm:    { flex: 1, borderRadius: R.md, paddingVertical: SP.sm + 4, alignItems: "center", backgroundColor: "#E74C3C" },
+  modalConfirmTxt: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
+
+  // ── Delete toast
+  toast:    { position: "absolute", bottom: 100, left: SP.lg, right: SP.lg, backgroundColor: COLORS.heroBg, borderRadius: R.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SP.sm, paddingVertical: SP.sm + 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 },
+  toastIcon: { fontSize: 16, color: COLORS.accent, fontWeight: "700" },
+  toastTxt:  { fontSize: 14, fontWeight: "600", color: COLORS.textOnDark },
 });
