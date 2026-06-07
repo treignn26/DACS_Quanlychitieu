@@ -8,6 +8,7 @@ const addTransactionRoutes = require("./routes/addTransactionRoutes");
 const aiRoutes             = require("./routes/aiRoutes");
 const settingsRoutes       = require("./routes/settingsRoutes");
 const chartRoutes          = require("./routes/chartRoutes");
+const budgetRoutes         = require("./routes/budgetRoutes");
 const errorHandler         = require("./middleware/errorHandler");
 
 const app  = express();
@@ -35,6 +36,7 @@ app.use("/api/settings", settingsRoutes);
 
 // Tab 2 — Charts
 app.use("/api/charts", chartRoutes);
+app.use("/api/budget", budgetRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {

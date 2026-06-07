@@ -141,6 +141,57 @@ export const chatWithAI = (query: string, lang: "vi" | "en") =>
 export const getChartData = (period: "day" | "month" | "year") =>
   apiFetch<ChartData>(`/api/charts/data?period=${period}`);
 
+// ─── Budget Plan ─────────────────────────────────────────────────────────────
+
+export interface CustomCategory {
+  id: string;
+  vi: string;
+  en: string;
+  emoji: string;
+  type: "expense" | "income";
+}
+
+export interface BudgetPlan {
+  month: number;
+  year: number;
+  monthlyIncome: number;
+  monthlyBudget: number;
+  monthlySavings: number;
+  otherPlan: string;
+  categoryBudgets: Record<string, number>;
+  categoryNames: Record<string, string>;
+  customCategories: CustomCategory[];
+}
+
+export interface BudgetData {
+  plan: BudgetPlan;
+  categorySpending: Record<string, number>; // emoji → amount
+}
+
+export const getBudgetData = (month?: number, year?: number) => {
+  const qs = new URLSearchParams();
+  if (month !== undefined) qs.set("month", String(month));
+  if (year  !== undefined) qs.set("year",  String(year));
+  const q = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<BudgetData>(`/api/budget/plan${q}`);
+};
+
+export const saveBudgetPlan = (data: {
+  month?: number;
+  year?: number;
+  monthlyIncome?: number;
+  monthlyBudget?: number;
+  monthlySavings?: number;
+  otherPlan?: string;
+  categoryBudgets?: Record<string, number>;
+  categoryNames?: Record<string, string>;
+  customCategories?: CustomCategory[];
+}) =>
+  apiFetch<BudgetPlan>("/api/budget/plan", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export const getProfile = () =>
