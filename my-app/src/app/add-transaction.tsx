@@ -1,6 +1,7 @@
 // src/app/add-transaction.tsx — Tab: Ngân sách
+import { COLORS, SP, RL as R } from "@/constants/tokens";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Animated,
@@ -18,22 +19,6 @@ import { useLanguage } from "../context/LanguageContext";
 import CalendarModal from "../components/CalendarModal";
 import * as api from "../api/client";
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const COLORS = {
-  pageBg: "#F5F7F6", cardBg: "#FFFFFF", heroBg: "#1A2E2A",
-  accent: "#2ECC9A",
-  income: "#2ECC9A", incomeText: "#15704F", incomeBg: "#E6FAF4", incomeBorder: "#A8DFC9",
-  expense: "#FF6B6B", expenseText: "#C0392B", expenseBg: "#FFF0F0", expenseBorder: "#FFBCBC",
-  warning: "#E67E22", warningBg: "#FFF5E6", warningBorder: "#F0C080",
-  danger:  "#E74C3C", dangerBg:  "#FFF0F0", dangerBorder:  "#FFBCBC",
-  textPrimary: "#1A2422", textSecondary: "#6B8076", textMuted: "#9EB8B0",
-  textOnDark: "#FFFFFF", textOnDarkMuted: "#A8C4BC",
-  border: "#E8EFED", inputBg: "#F0F5F3", shadow: "#1A2422",
-  catActiveBg: "#1A2E2A", catInactiveBg: "#F0F5F3", catInactiveText: "#5A7A72",
-};
-
-const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
-const R  = { sm: 10, md: 16, lg: 24, xl: 32 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtVND = (raw: string): string => {
@@ -95,6 +80,7 @@ const EMOJI_LIST = [
 export default function AddTransactionScreen() {
   const { lang } = useLanguage();
   const s = (vi: string, en: string) => lang === "vi" ? vi : en;
+  const router = useRouter();
 
   // ── Page mode ──────────────────────────────────────────────────────────────
   const [pageMode, setPageMode] = useState<PageMode>("add");
@@ -106,7 +92,6 @@ export default function AddTransactionScreen() {
   const [notes,       setNotes]       = useState("");
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [saving,      setSaving]      = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCal,      setShowCal]      = useState(false);
@@ -135,7 +120,7 @@ export default function AddTransactionScreen() {
   const [planSaving,     setPlanSaving]     = useState(false);
   const [planError,      setPlanError]      = useState<string | null>(null);
 
-  const toastOpacity    = useRef(new Animated.Value(0)).current;
+
   const planSavedAnim   = useRef(new Animated.Value(0)).current;
 
   // ── Spending derived from real data ───────────────────────────────────────
@@ -195,15 +180,6 @@ export default function AddTransactionScreen() {
 
   const handleTypeSwitch = (t: TxType) => { setTxType(t); setSelectedCat(null); };
 
-  const triggerToast = () => {
-    setShowSuccess(true);
-    Animated.sequence([
-      Animated.timing(toastOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-      Animated.delay(1800),
-      Animated.timing(toastOpacity, { toValue: 0, duration: 350, useNativeDriver: true }),
-    ]).start(() => setShowSuccess(false));
-  };
-
   const doSave = async () => {
     if (!selectedCat) return;
     const cat = cats.find((c) => c.id === selectedCat)!;
@@ -218,11 +194,11 @@ export default function AddTransactionScreen() {
         note:     notes,
         date:     selectedDate.toISOString(),
       });
-      triggerToast();
       setRawAmount("");
       setNotes("");
       setSelectedCat(null);
       setSelectedDate(new Date());
+      router.navigate("/");
     } catch (e: any) {
       setErrorMsg(e.message ?? "Lưu thất bại, thử lại.");
     } finally {
@@ -400,23 +376,6 @@ export default function AddTransactionScreen() {
         {/* ═══════════════════════ ADD MODE ═══════════════════════ */}
         {pageMode === "add" && (
           <>
-            {/* Budget warning banner */}
-            {hasBudget && budgetStatus !== "normal" && (
-              <View style={[st.banner, budgetStatus === "danger" ? st.bannerDanger : st.bannerWarning]}>
-                <Text style={[st.bannerTxt, { color: budgetStatus === "danger" ? COLORS.danger : COLORS.warning }]}>
-                  {budgetStatus === "danger"
-                    ? s(
-                        `⛔ Bạn đã vượt kế hoạch! Đã chi ${fmtNum(totalSpent)} / ${fmtNum(budgetNum)}.`,
-                        `⛔ Over budget! Spent ${fmtNum(totalSpent)} of ${fmtNum(budgetNum)}.`,
-                      )
-                    : s(
-                        `⚠️ Bạn đã tiêu hết ${Math.round(budgetPct)}% ngân sách tháng này. Hãy cân nhắc trước các khoản chi lớn tiếp theo nhé!`,
-                        `⚠️ You've used ${Math.round(budgetPct)}% of your monthly budget. Think before your next big spend!`,
-                      )}
-                </Text>
-              </View>
-            )}
-
             {errorMsg && (
               <View style={st.errorBanner}>
                 <Text style={st.errorBannerText}>⚠️ {errorMsg}</Text>
@@ -639,25 +598,6 @@ export default function AddTransactionScreen() {
                         <Text style={[st.progressRight, { color: statusColor }]}>{Math.round(budgetPct)}%</Text>
                       </View>
 
-                      {budgetStatus === "danger" ? (
-                        <View style={[st.statusChip, { backgroundColor: COLORS.dangerBg }]}>
-                          <Text style={[st.statusChipTxt, { color: COLORS.danger }]}>
-                            {s(`⛔ Vượt mức: ${fmtNum(totalSpent - budgetNum)}`, `⛔ Over by: ${fmtNum(totalSpent - budgetNum)}`)}
-                          </Text>
-                        </View>
-                      ) : budgetStatus === "warning" ? (
-                        <View style={[st.statusChip, { backgroundColor: COLORS.warningBg }]}>
-                          <Text style={[st.statusChipTxt, { color: COLORS.warning }]}>
-                            {s(`⚠️ Còn lại: ${fmtNum(budgetNum - totalSpent)}`, `⚠️ Remaining: ${fmtNum(budgetNum - totalSpent)}`)}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={[st.statusChip, { backgroundColor: COLORS.incomeBg }]}>
-                          <Text style={[st.statusChipTxt, { color: COLORS.incomeText }]}>
-                            {s(`✓ Còn lại: ${fmtNum(budgetNum - totalSpent)}`, `✓ Remaining: ${fmtNum(budgetNum - totalSpent)}`)}
-                          </Text>
-                        </View>
-                      )}
                     </View>
                   )}
                 </View>
@@ -810,21 +750,15 @@ export default function AddTransactionScreen() {
                               <View style={st.catTrack}>
                                 <View style={[st.catFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barClr }]} />
                               </View>
-                              <Text style={[st.catProgressTxt, pct >= 100 && { color: COLORS.danger }]}>
-                                {pct >= 100
-                                  ? s(`⛔ Vượt ${fmtNum(spent - budNum2)}`, `⛔ Over ${fmtNum(spent - budNum2)}`)
-                                  : `${fmtNum(spent)} / ${fmtNum(budNum2)}`}
+                              <Text style={st.catProgressTxt}>
+                                {fmtNum(spent)} / {fmtNum(budNum2)}
                               </Text>
                             </>
                           )}
                         </View>
                         <View style={st.catInputWrap}>
                           <TextInput
-                            style={[
-                              st.catInput,
-                              hasLimit && pct >= 100 && { borderColor: COLORS.danger, backgroundColor: COLORS.dangerBg },
-                              hasLimit && pct >= 80 && pct < 100 && { borderColor: COLORS.warning, backgroundColor: COLORS.warningBg },
-                            ]}
+                            style={st.catInput}
                             placeholder="0"
                             placeholderTextColor={COLORS.textMuted}
                             keyboardType="numeric"
@@ -982,17 +916,6 @@ export default function AddTransactionScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* ── Success toast ── */}
-      {showSuccess && (
-        <Animated.View style={[st.toast, { opacity: toastOpacity }]}>
-          <Text style={st.toastEmoji}>✓</Text>
-          <View>
-            <Text style={st.toastTitle}>{s("Đã lưu!", "Saved!")}</Text>
-            <Text style={st.toastSub}>{s("Giao dịch đã được thêm", "Transaction added")}</Text>
-          </View>
-        </Animated.View>
-      )}
 
       {/* ── Plan saved toast ── */}
       {planSaved && (

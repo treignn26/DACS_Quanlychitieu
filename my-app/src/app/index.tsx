@@ -1,4 +1,5 @@
 // src/app/index.tsx — Tab 1: Home / Dashboard
+import { COLORS, SP, R } from "@/constants/tokens";
 import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
@@ -16,36 +17,10 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useLanguage } from "../context/LanguageContext";
-import CalendarModal from "../components/CalendarModal";
-import SwipeableRow from "../components/SwipeableRow";
+import { CalendarModal, SwipeableRow, TxRow, EmptyState, type Tx } from "@/components";
 import * as api from "../api/client";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const COLORS = {
-  pageBg:          "#F5F7F6",
-  cardBg:          "#FFFFFF",
-  heroBg:          "#1A2E2A",
-  heroSub:         "#243D38",
-  accent:          "#2ECC9A",
-  accentDeep:      "#1BAA7E",
-  accentSoft:      "#E6FAF4",
-  income:          "#2ECC9A",
-  incomeText:      "#15704F",
-  incomeBg:        "#E6FAF4",
-  expense:         "#FF6B6B",
-  expenseText:     "#C0392B",
-  expenseBg:       "#FFF0F0",
-  textPrimary:     "#1A2422",
-  textSecondary:   "#6B8076",
-  textMuted:       "#9EB8B0",
-  textOnDark:      "#FFFFFF",
-  textOnDarkMuted: "#A8C4BC",
-  border:          "#E8EFED",
-  inputBg:         "#F0F5F3",
-};
-
-const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
-const R  = { sm: 8, md: 12, lg: 16, xl: 20, full: 999 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtVND = (n: number): string =>
@@ -56,19 +31,22 @@ const isSameDay = (a: Date, b: Date): boolean =>
   a.getMonth()    === b.getMonth()    &&
   a.getDate()     === b.getDate();
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type TxType       = "income" | "expense";
-type TxTypeFilter = "all" | "income" | "expense";
+// ─── Category metadata (for budget plan display) ──────────────────────────────
+const CAT_META: Record<string, { vi: string; en: string; emoji: string }> = {
+  food:      { vi: "Ăn uống",    en: "Food",       emoji: "🍜" },
+  shopping:  { vi: "Mua sắm",    en: "Shopping",   emoji: "🛍️" },
+  transport: { vi: "Di chuyển",  en: "Transport",  emoji: "🚌" },
+  health:    { vi: "Sức khỏe",   en: "Health",     emoji: "💊" },
+  bills:     { vi: "Hóa đơn",    en: "Bills",      emoji: "📑" },
+  leisure:   { vi: "Giải trí",   en: "Leisure",    emoji: "🎮" },
+  housing:   { vi: "Nhà ở",      en: "Housing",    emoji: "🏠" },
+  travel:    { vi: "Du lịch",    en: "Travel",     emoji: "✈️" },
+  other:     { vi: "Khác",       en: "Other",      emoji: "💡" },
+  other_in:  { vi: "Khác",       en: "Other",      emoji: "💡" },
+};
 
-interface Tx {
-  id:       string;
-  type:     TxType;
-  amount:   number;
-  category: string;
-  catLabel: { vi: string; en: string };
-  note:     string;
-  date:     Date;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TxTypeFilter = "all" | "income" | "expense";
 
 // Chuyển Transaction từ API sang Tx dùng trong UI
 const toTx = (raw: api.Transaction): Tx => ({
@@ -81,97 +59,6 @@ const toTx = (raw: api.Transaction): Tx => ({
   date:     new Date(raw.date),
 });
 
-// ─── TxRow sub-component ──────────────────────────────────────────────────────
-interface TxRowProps { tx: Tx; lang: "vi" | "en"; }
-
-function TxRow({ tx, lang }: TxRowProps) {
-  const isIncome = tx.type === "income";
-  const dateStr  = tx.date.toLocaleDateString(
-    lang === "vi" ? "vi-VN" : "en-GB",
-    { day: "2-digit", month: "2-digit" },
-  );
-
-  return (
-    <View style={row.wrap}>
-      <View
-        style={[
-          row.iconCircle,
-          { backgroundColor: isIncome ? COLORS.incomeBg : COLORS.expenseBg },
-        ]}
-      >
-        <Text style={row.icon}>{tx.category}</Text>
-      </View>
-
-      <View style={row.info}>
-        <Text style={row.catLabel}>{tx.catLabel[lang]}</Text>
-        <Text style={row.note} numberOfLines={1}>{tx.note}</Text>
-      </View>
-
-      <View style={row.right}>
-        <Text
-          style={[
-            row.amount,
-            { color: isIncome ? COLORS.incomeText : COLORS.expenseText },
-          ]}
-        >
-          {isIncome ? "+" : "−"}{fmtVND(tx.amount)}
-        </Text>
-        <Text style={row.date}>{dateStr}</Text>
-      </View>
-    </View>
-  );
-}
-
-const row = StyleSheet.create({
-  wrap: {
-    flexDirection:   "row",
-    alignItems:      "center",
-    backgroundColor: COLORS.cardBg,
-    padding:         SP.md,
-  },
-  iconCircle: {
-    width:          44,
-    height:         44,
-    borderRadius:   22,
-    alignItems:     "center",
-    justifyContent: "center",
-    marginRight:    SP.md,
-  },
-  icon:     { fontSize: 22 },
-  info:     { flex: 1 },
-  catLabel: { fontSize: 14, fontWeight: "600", color: COLORS.textPrimary, marginBottom: 2 },
-  note:     { fontSize: 12, color: COLORS.textSecondary },
-  right:    { alignItems: "flex-end" },
-  amount:   { fontSize: 13, fontWeight: "700", marginBottom: 2 },
-  date:     { fontSize: 11, color: COLORS.textMuted },
-});
-
-// ─── EmptyState sub-component ─────────────────────────────────────────────────
-interface EmptyStateProps {
-  title: string; body: string; clearLabel: string; onClear: () => void;
-}
-
-function EmptyState({ title, body, clearLabel, onClear }: EmptyStateProps) {
-  return (
-    <View style={empty.wrap}>
-      <Text style={empty.emoji}>🔍</Text>
-      <Text style={empty.title}>{title}</Text>
-      <Text style={empty.body}>{body}</Text>
-      <TouchableOpacity style={empty.btn} onPress={onClear} activeOpacity={0.8}>
-        <Text style={empty.btnTxt}>{clearLabel}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const empty = StyleSheet.create({
-  wrap:   { alignItems: "center", paddingTop: SP.xl + SP.md, paddingBottom: SP.xl, paddingHorizontal: SP.xl },
-  emoji:  { fontSize: 44, marginBottom: SP.md },
-  title:  { fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.sm, textAlign: "center" },
-  body:   { fontSize: 14, color: COLORS.textSecondary, textAlign: "center", lineHeight: 21, marginBottom: SP.lg },
-  btn:    { backgroundColor: COLORS.accentSoft, borderRadius: R.full, paddingHorizontal: SP.lg, paddingVertical: SP.sm + 2 },
-  btnTxt: { fontSize: 14, fontWeight: "600", color: COLORS.incomeText },
-});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
@@ -190,6 +77,10 @@ export default function HomeScreen() {
   const [typeFilter,   setTypeFilter]   = useState<TxTypeFilter>("all");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showCal,      setShowCal]      = useState(false);
+
+  // ── Budget plan state
+  const [budgetData,   setBudgetData]   = useState<api.BudgetData | null>(null);
+  const [showPlan,     setShowPlan]     = useState(false);
 
   // ── Delete state
   const [deletingTx,       setDeletingTx]       = useState<Tx | null>(null);
@@ -244,6 +135,11 @@ export default function HomeScreen() {
       ]);
       setTransactions(rawTx.map(toTx));
       setSummary(sum);
+      // budget plan — non-blocking, failure không ảnh hưởng màn hình chính
+      const now = new Date();
+      api.getBudgetData(now.getMonth() + 1, now.getFullYear())
+        .then((data) => setBudgetData(data))
+        .catch(() => {});
     } catch (e: any) {
       setError(e.message ?? "Không thể tải dữ liệu");
     } finally {
@@ -262,6 +158,40 @@ export default function HomeScreen() {
   const barPct     = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
   const barWidth   = Math.min(barPct, 100);   // thanh không vượt quá track
   const budgetOver = barPct >= 100;
+
+  // ── Budget plan categories for home display
+  const budgetCatItems = useMemo(() => {
+    if (!budgetData) return [];
+    const { plan, categorySpending } = budgetData;
+    const budgets = plan.categoryBudgets as Record<string, number>;
+    if (!budgets) return [];
+
+    // emoji → catId
+    const emojiToId: Record<string, string> = {};
+    Object.entries(CAT_META).forEach(([id, { emoji }]) => { emojiToId[emoji] = id; });
+    (plan.customCategories ?? []).forEach((c) => { emojiToId[c.emoji] = c.id; });
+
+    // catId → spent (via emoji key from API)
+    const spentById: Record<string, number> = {};
+    Object.entries(categorySpending ?? {}).forEach(([emoji, amt]) => {
+      const id = emojiToId[emoji];
+      if (id) spentById[id] = (spentById[id] ?? 0) + amt;
+    });
+
+    const items: { catId: string; emoji: string; name: string; spent: number; limit: number; pct: number }[] = [];
+    for (const [catId, limit] of Object.entries(budgets)) {
+      if (!limit || limit <= 0) continue;
+      const meta: { vi: string; en: string; emoji: string } | undefined =
+        CAT_META[catId] ?? (plan.customCategories ?? []).find((c) => c.id === catId);
+      if (!meta) continue;
+      const customName = (plan.categoryNames as Record<string, string>)?.[catId];
+      const name  = customName || (lang === "vi" ? meta.vi : meta.en);
+      const spent = spentById[catId] ?? 0;
+      const pct   = (spent / limit) * 100;
+      items.push({ catId, emoji: meta.emoji, name, spent, limit, pct });
+    }
+    return items.sort((a, b) => b.pct - a.pct);
+  }, [budgetData, lang]);
 
   // ── Filtered list (client-side)
   const filteredTx = useMemo<Tx[]>(() => {
@@ -368,13 +298,22 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* BUDGET BAR */}
-      <View style={s.budgetCard}>
+      {/* BUDGET BAR — ấn để mở/đóng kế hoạch */}
+      <TouchableOpacity
+        style={s.budgetCard}
+        onPress={() => budgetCatItems.length > 0 && setShowPlan((v) => !v)}
+        activeOpacity={budgetCatItems.length > 0 ? 0.82 : 1}
+      >
         <View style={s.budgetHeaderRow}>
           <Text style={s.budgetLabel}>{t.homeBudgetTitle}</Text>
-          <Text style={[s.budgetPct, { color: budgetOver ? COLORS.expenseText : COLORS.incomeText }]}>
-            {barPct}%
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: SP.sm }}>
+            <Text style={[s.budgetPct, { color: budgetOver ? COLORS.expenseText : COLORS.incomeText }]}>
+              {barPct}%
+            </Text>
+            {budgetCatItems.length > 0 && (
+              <Text style={s.budgetChevron}>{showPlan ? "▲" : "▼"}</Text>
+            )}
+          </View>
         </View>
         <View style={s.budgetTrack}>
           <View
@@ -387,7 +326,50 @@ export default function HomeScreen() {
         <Text style={s.budgetSub}>
           {fmtVND(totalExpense)} / {fmtVND(totalIncome)}
         </Text>
-      </View>
+      </TouchableOpacity>
+
+      {/* OVER-BUDGET WARNING */}
+      {barPct >= 100 && (
+        <View style={s.overBudgetBanner}>
+          <Text style={s.overBudgetTxt}>
+            {lang === "vi"
+              ? `⛔ Chi tiêu đã vượt thu nhập ${barPct}%! Hãy kiểm soát chi tiêu của bạn.`
+              : `⛔ Spending at ${barPct}% of income! Time to rein in your expenses.`}
+          </Text>
+        </View>
+      )}
+
+      {/* BUDGET PLAN CATEGORIES — chỉ hiện khi showPlan */}
+      {showPlan && budgetCatItems.length > 0 && (
+        <View style={s.planCard}>
+          <Text style={s.planCardTitle}>
+            {lang === "vi" ? "Kế hoạch tháng này" : "This Month's Plan"}
+          </Text>
+          {budgetCatItems.map((item) => (
+            <View key={item.catId} style={s.planCatRow}>
+              <Text style={s.planCatEmoji}>{item.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={s.planCatHeader}>
+                  <Text style={s.planCatName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={[s.planCatPct, item.pct >= 100 && { color: COLORS.expenseText }]}>
+                    {Math.round(item.pct)}%
+                  </Text>
+                </View>
+                <View style={s.planCatTrack}>
+                  <View style={[
+                    s.planCatFill,
+                    {
+                      width: `${Math.min(item.pct, 100)}%` as any,
+                      backgroundColor: item.pct >= 100 ? COLORS.expense : item.pct >= 80 ? "#E67E22" : COLORS.accent,
+                    },
+                  ]} />
+                </View>
+                <Text style={s.planCatSub}>{fmtVND(item.spent)} / {fmtVND(item.limit)}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* TYPE FILTER CHIPS */}
       <View style={s.filterRow}>
@@ -587,4 +569,21 @@ const s = StyleSheet.create({
   toast:    { position: "absolute", bottom: 100, left: SP.lg, right: SP.lg, backgroundColor: COLORS.heroBg, borderRadius: R.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: SP.sm, paddingVertical: SP.sm + 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 },
   toastIcon: { fontSize: 16, color: COLORS.accent, fontWeight: "700" },
   toastTxt:  { fontSize: 14, fontWeight: "600", color: COLORS.textOnDark },
+
+  // ── Over-budget warning banner
+  overBudgetBanner: { backgroundColor: COLORS.expenseBg, marginHorizontal: SP.md, marginBottom: SP.sm, borderRadius: R.lg, padding: SP.md, borderWidth: 1, borderColor: "#FFBCBC" },
+  overBudgetTxt:    { fontSize: 13, fontWeight: "600", color: COLORS.expenseText, lineHeight: 18 },
+
+  // ── Budget plan categories card
+  planCard:      { backgroundColor: COLORS.cardBg, marginHorizontal: SP.md, marginBottom: SP.md, borderRadius: R.lg, padding: SP.md, shadowColor: "#1A2422", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  planCardTitle: { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.md },
+  planCatRow:    { flexDirection: "row", alignItems: "center", marginBottom: SP.sm + 2 },
+  planCatEmoji:  { fontSize: 20, width: 30, marginRight: SP.sm },
+  planCatHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  planCatName:   { fontSize: 13, fontWeight: "600", color: COLORS.textPrimary, flex: 1, marginRight: SP.sm },
+  planCatPct:    { fontSize: 12, fontWeight: "700", color: COLORS.incomeText },
+  planCatTrack:  { height: 6, backgroundColor: COLORS.border, borderRadius: R.full, overflow: "hidden", marginBottom: 3 },
+  planCatFill:   { height: "100%", borderRadius: R.full },
+  planCatSub:    { fontSize: 11, color: COLORS.textMuted },
+  budgetChevron: { fontSize: 10, color: COLORS.textMuted, fontWeight: "700" },
 });

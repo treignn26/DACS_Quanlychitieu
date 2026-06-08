@@ -1,4 +1,5 @@
 // src/app/charts.tsx — Tab 2: Biểu đồ / Charts
+import { COLORS, SP, R } from "@/constants/tokens";
 
 import React, { useState, useCallback, useRef } from "react";
 import {
@@ -15,28 +16,9 @@ import {
 import { useFocusEffect } from "expo-router";
 import { useLanguage } from "../context/LanguageContext";
 import * as api from "../api/client";
+import { BarChart, CatRow, type BarData, type CatData } from "@/components";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const COLORS = {
-  pageBg:          "#F5F7F6",
-  cardBg:          "#FFFFFF",
-  heroBg:          "#1A2E2A",
-  accent:          "#2ECC9A",
-  income:          "#2ECC9A",
-  incomeText:      "#15704F",
-  expense:         "#FF6B6B",
-  expenseText:     "#C0392B",
-  textPrimary:     "#1A2422",
-  textSecondary:   "#6B8076",
-  textMuted:       "#9EB8B0",
-  textOnDark:      "#FFFFFF",
-  textOnDarkMuted: "#A8C4BC",
-  border:          "#E8EFED",
-  gridLine:        "#EEF3F1",
-};
-
-const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
-const R  = { sm: 8, md: 12, lg: 16, xl: 20, full: 999 } as const;
 
 const CAT_PALETTE = ["#2ECC9A", "#3498DB", "#E67E22", "#9B59B6", "#F39C12", "#E74C3C"];
 
@@ -51,21 +33,6 @@ const fmtShort = (n: number): string => {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PeriodMode = "day" | "month" | "year";
-
-interface BarData {
-  label:   string;
-  income:  number;
-  expense: number;
-}
-
-interface CatData {
-  emoji:   string;
-  labelVi: string;
-  labelEn: string;
-  amount:  number;
-  pct:     number;
-  color:   string;
-}
 
 // ─── Label arrays ─────────────────────────────────────────────────────────────
 const DAY_VI = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -94,116 +61,6 @@ function toBars(raw: api.BarItem[], mode: PeriodMode, lang: "vi" | "en"): BarDat
   return raw.map(b => ({ label: String(b.key), income: b.income, expense: b.expense }));
 }
 
-// ─── BarChart ─────────────────────────────────────────────────────────────────
-// CHART_H = bars area height (fixed, used for grid alignment)
-// LABEL_H = x-axis label area below bars
-// TOTAL_H = CHART_H + LABEL_H = total chart component height
-const CHART_H = 130;
-const LABEL_H = 18;
-const TOTAL_H = CHART_H + LABEL_H;
-const BAR_W   = 13;
-const BAR_GAP = 4;
-
-function BarChart({ data }: { data: BarData[] }) {
-  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
-  const midTop = CHART_H / 2; // 65
-
-  return (
-    // Outer row: explicit TOTAL_H so both children have a defined parent height
-    <View style={{ flexDirection: "row", height: TOTAL_H }}>
-
-      {/* ── Y-axis: CHART_H tall, labels absolutely positioned ── */}
-      <View style={{ width: 42, height: CHART_H, position: "relative" }}>
-        {/* 100% → top of CHART_H zone */}
-        <Text style={[bc.yLabel, { top: 0 }]}>{fmtShort(maxVal)}</Text>
-        {/* 50% → mid of CHART_H zone */}
-        <Text style={[bc.yLabel, { top: midTop - 5 }]}>{fmtShort(maxVal / 2)}</Text>
-        {/* 0%  → bottom of CHART_H zone */}
-        <Text style={[bc.yLabel, { bottom: 0 }]}>0</Text>
-      </View>
-
-      {/* ── Chart area: TOTAL_H tall so labels aren't clipped ── */}
-      <View style={{ flex: 1, height: TOTAL_H, position: "relative" }}>
-
-        {/* Grid lines: cover CHART_H zone only, pointer-events disabled */}
-        <View
-          pointerEvents="none"
-          style={{ position: "absolute", top: 0, left: 0, right: 0, height: CHART_H }}
-        >
-          <View style={[bc.gridLine, { top: 0 }]} />
-          <View style={[bc.gridLine, { top: midTop }]} />
-          {/* Baseline is slightly darker */}
-          <View style={[bc.baseline, { top: CHART_H - 1 }]} />
-        </View>
-
-        {/* Horizontal scroll: fills full TOTAL_H so labels show below bars */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-end", height: TOTAL_H, paddingHorizontal: SP.xs }}>
-            {data.map((d, i) => {
-              const incH = d.income  > 0 ? Math.max((d.income  / maxVal) * CHART_H, 4) : 0;
-              const expH = d.expense > 0 ? Math.max((d.expense / maxVal) * CHART_H, 4) : 0;
-              return (
-                <View key={i} style={{ alignItems: "center", marginHorizontal: 5 }}>
-                  {/* Bars grow from the bottom of CHART_H zone */}
-                  <View style={{ flexDirection: "row", alignItems: "flex-end", height: CHART_H }}>
-                    <View style={[bc.bar, { height: incH,  backgroundColor: COLORS.income  }]} />
-                    <View style={[bc.bar, { height: expH,  backgroundColor: COLORS.expense, marginLeft: BAR_GAP }]} />
-                  </View>
-                  {/* X-axis label sits below bars, inside LABEL_H zone */}
-                  <Text style={bc.barLabel}>{d.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </ScrollView>
-      </View>
-    </View>
-  );
-}
-
-const bc = StyleSheet.create({
-  yLabel:  { position: "absolute", right: 6, fontSize: 9, color: COLORS.textMuted },
-  gridLine:{ position: "absolute", left: 0, right: 0, height: 1, backgroundColor: COLORS.gridLine },
-  baseline:{ position: "absolute", left: 0, right: 0, height: 1, backgroundColor: COLORS.border  },
-  bar:     { width: BAR_W, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  barLabel:{ fontSize: 9, color: COLORS.textMuted, marginTop: SP.xs, textAlign: "center", height: LABEL_H - SP.xs },
-});
-
-// ─── CategoryRow ──────────────────────────────────────────────────────────────
-function CatRow({ cat, lang }: { cat: CatData; lang: "vi" | "en" }) {
-  return (
-    <View style={cr.wrap}>
-      <View style={cr.left}>
-        <Text style={cr.emoji}>{cat.emoji}</Text>
-        <Text style={cr.name} numberOfLines={1}>
-          {lang === "vi" ? cat.labelVi : cat.labelEn}
-        </Text>
-      </View>
-      <View style={cr.trackWrap}>
-        <View style={cr.track}>
-          <View style={[cr.fill, { width: `${Math.max(cat.pct, 3)}%` as any, backgroundColor: cat.color }]} />
-        </View>
-      </View>
-      <View style={cr.right}>
-        <Text style={cr.pct}>{cat.pct}%</Text>
-        <Text style={cr.amount}>{fmtVND(cat.amount)}</Text>
-      </View>
-    </View>
-  );
-}
-
-const cr = StyleSheet.create({
-  wrap:     { flexDirection: "row", alignItems: "center", marginBottom: SP.sm + 2 },
-  left:     { flexDirection: "row", alignItems: "center", width: 112 },
-  emoji:    { fontSize: 18, marginRight: SP.sm },
-  name:     { fontSize: 12, color: COLORS.textPrimary, fontWeight: "600", flexShrink: 1 },
-  trackWrap:{ flex: 1, marginHorizontal: SP.sm },
-  track:    { height: 8, backgroundColor: COLORS.border, borderRadius: R.full, overflow: "hidden" },
-  fill:     { height: "100%", borderRadius: R.full },
-  right:    { width: 84, alignItems: "flex-end" },
-  pct:      { fontSize: 12, fontWeight: "700", color: COLORS.textPrimary },
-  amount:   { fontSize: 10, color: COLORS.textMuted },
-});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ChartsScreen() {
@@ -351,6 +208,18 @@ export default function ChartsScreen() {
           </View>
         </View>
 
+        {/* ── CẢNH BÁO CHI VƯỢT THU NHẬP ─────────────────────────────── */}
+        {balance < 0 && (
+          <View style={sc.overBudgetBanner}>
+            <Text style={sc.overBudgetTxt}>
+              {s(
+                `⛔ Chi tiêu vượt thu nhập ${Math.abs(Math.round((balance / Math.max(summary.totalIncome, 1)) * 100))}%! Bạn đang chi nhiều hơn thu nhập trong kỳ này.`,
+                `⛔ Spending exceeded income by ${Math.abs(Math.round((balance / Math.max(summary.totalIncome, 1)) * 100))}%! You're spending more than you earn this period.`,
+              )}
+            </Text>
+          </View>
+        )}
+
         {/* ── BIỂU ĐỒ CỘT ─────────────────────────────────────────────── */}
         <View style={sc.card}>
           <View style={sc.cardHeader}>
@@ -463,4 +332,7 @@ const sc = StyleSheet.create({
 
   legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 4 },
   legendTxt: { fontSize: 11, color: COLORS.textSecondary, fontWeight: "600" },
+
+  overBudgetBanner: { backgroundColor: "#FFF0F0", marginHorizontal: SP.md, marginBottom: SP.md, borderRadius: R.lg, padding: SP.md, borderWidth: 1, borderColor: "#FFBCBC" },
+  overBudgetTxt:    { fontSize: 13, fontWeight: "600", color: COLORS.expenseText, lineHeight: 18 },
 });

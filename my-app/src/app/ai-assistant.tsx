@@ -1,4 +1,5 @@
 // src/app/ai-assistant.tsx — Tab 3: AI Assistant
+import { COLORS, SP, RL as R } from "@/constants/tokens";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,21 +14,9 @@ import {
 } from "react-native";
 import { useLanguage } from "../context/LanguageContext";
 import * as api from "../api/client";
+import { InsightCardView, SpendRow } from "@/components";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const COLORS = {
-  pageBg: "#F5F7F6", cardBg: "#FFFFFF", heroBg: "#1A2E2A", heroSub: "#243D38", heroDeep: "#162420",
-  accent: "#2ECC9A", accentDeep: "#1BAA7E", accentSoft: "#E6FAF4",
-  income: "#2ECC9A", incomeText: "#15704F", incomeBg: "#E6FAF4",
-  expense: "#FF6B6B", expenseText: "#C0392B", expenseBg: "#FFF0F0",
-  warn: "#F5A623", warnBg: "#FEF5E7", warnText: "#B7751A",
-  textPrimary: "#1A2422", textSecondary: "#6B8076", textMuted: "#9EB8B0",
-  textOnDark: "#FFFFFF", textOnDarkMuted: "#A8C4BC", textOnDarkDeep: "#6A8E87",
-  border: "#E8EFED", inputBg: "#F0F5F3", shadow: "#1A2422",
-};
-
-const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
-const R  = { sm: 10, md: 16, lg: 24, xl: 32 };
 
 const fmtVND = (n: number) => n.toLocaleString("vi-VN") + " đ";
 
@@ -41,36 +30,6 @@ function scoreBand(score: number, lang: "vi" | "en") {
   return               { label: lang === "vi" ? "Cần cải thiện"  : "Needs Work",  color: COLORS.expense };
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function InsightCardView({ card, lang }: { card: api.InsightCard; lang: "vi" | "en" }) {
-  const bg     = card.tag === "positive" ? COLORS.incomeBg : card.tag === "warning" ? COLORS.warnBg  : "#F0F5F3";
-  const border = card.tag === "positive" ? COLORS.income   : card.tag === "warning" ? COLORS.warn    : COLORS.border;
-  return (
-    <View style={[styles.insightCard, { backgroundColor: bg, borderColor: border }]}>
-      <Text style={styles.insightEmoji}>{card.emoji}</Text>
-      <Text style={styles.insightTitle}>{lang === "vi" ? card.titleVi : card.titleEn}</Text>
-      <Text style={styles.insightBody}>{lang === "vi"  ? card.bodyVi  : card.bodyEn}</Text>
-    </View>
-  );
-}
-
-function SpendRow({ cat, last, lang }: { cat: api.SpendCategory; last: boolean; lang: "vi" | "en" }) {
-  return (
-    <View style={[styles.spendRow, !last && styles.spendRowBorder]}>
-      <Text style={styles.spendEmoji}>{cat.emoji}</Text>
-      <View style={styles.spendInfo}>
-        <Text style={styles.spendName}>{lang === "vi" ? cat.vi : cat.en}</Text>
-        <View style={styles.spendBarTrack}>
-          <View style={[styles.spendBarFill, { width: `${cat.pct}%` as any, backgroundColor: cat.color }]} />
-        </View>
-      </View>
-      <View style={styles.spendRight}>
-        <Text style={styles.spendAmt}>{fmtVND(cat.amount)}</Text>
-        <Text style={styles.spendPct}>{cat.pct}%</Text>
-      </View>
-    </View>
-  );
-}
 
 const PRESETS = [
   { vi: "Tôi đang chi tiêu như thế nào?", en: "How am I spending?" },
@@ -374,21 +333,6 @@ const styles = StyleSheet.create({
   sectionOuter:        { marginTop: SP.md },
   sectionTitle:        { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.sm, paddingHorizontal: SP.md },
   insightScrollContent: { paddingHorizontal: SP.md, gap: SP.sm, flexDirection: "row", paddingBottom: SP.sm },
-  insightCard:  { width: 220, borderRadius: R.lg, padding: SP.md, borderWidth: 1.5, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  insightEmoji: { fontSize: 24, marginBottom: SP.sm },
-  insightTitle: { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.xs },
-  insightBody:  { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
-
-  spendRow:       { flexDirection: "row", alignItems: "center", paddingVertical: SP.sm + 4, gap: SP.sm },
-  spendRowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  spendEmoji:     { fontSize: 20, flexShrink: 0 },
-  spendInfo:      { flex: 1 },
-  spendName:      { fontSize: 12, fontWeight: "700", color: COLORS.textPrimary, marginBottom: SP.xs },
-  spendBarTrack:  { height: 5, backgroundColor: COLORS.border, borderRadius: 3, overflow: "hidden" },
-  spendBarFill:   { height: "100%", borderRadius: 3 },
-  spendRight:     { alignItems: "flex-end", flexShrink: 0 },
-  spendAmt:       { fontSize: 11, fontWeight: "700", color: COLORS.textPrimary },
-  spendPct:       { fontSize: 10, color: COLORS.textMuted, fontWeight: "500", marginTop: 1 },
 
   consultCard: {
     backgroundColor: COLORS.heroBg, marginHorizontal: SP.md, marginTop: SP.md,

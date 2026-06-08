@@ -1,4 +1,5 @@
 :root {
+  /* ── Fonts ── */
   --font-display:
     Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
     Segoe UI Symbol, Noto Color Emoji;
@@ -6,4 +7,66 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+
+  /* ── Colors (mirrors src/constants/tokens.ts COLORS) ── */
+  --color-page-bg:           #F5F7F6;
+  --color-card-bg:           #FFFFFF;
+  --color-hero-bg:           #1A2E2A;
+  --color-hero-sub:          #243D38;
+  --color-hero-deep:         #162420;
+  --color-accent:            #2ECC9A;
+  --color-accent-deep:       #1BAA7E;
+  --color-accent-soft:       #E6FAF4;
+  --color-accent-text:       #15704F;
+  --color-income:            #2ECC9A;
+  --color-income-text:       #15704F;
+  --color-income-bg:         #E6FAF4;
+  --color-income-border:     #A8DFC9;
+  --color-expense:           #FF6B6B;
+  --color-expense-text:      #C0392B;
+  --color-expense-bg:        #FFF0F0;
+  --color-expense-border:    #FFBCBC;
+  --color-warning:           #E67E22;
+  --color-warning-bg:        #FFF5E6;
+  --color-warning-border:    #F0C080;
+  --color-warn:              #F5A623;
+  --color-warn-bg:           #FEF5E7;
+  --color-warn-text:         #B7751A;
+  --color-danger:            #E74C3C;
+  --color-danger-bg:         #FFF0F0;
+  --color-danger-border:     #FFBCBC;
+  --color-destructive:       #FF6B6B;
+  --color-text-primary:      #1A2422;
+  --color-text-secondary:    #6B8076;
+  --color-text-muted:        #9EB8B0;
+  --color-text-on-dark:      #FFFFFF;
+  --color-text-on-dark-muted:#A8C4BC;
+  --color-text-on-dark-deep: #6A8E87;
+  --color-border:            #E8EFED;
+  --color-input-bg:          #F0F5F3;
+  --color-input-border:      #DDE8E5;
+  --color-grid-line:         #EEF3F1;
+  --color-row-hover:         #F8FAFA;
+  --color-shadow:            #1A2422;
+
+  /* ── Spacing (mirrors SP) ── */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  16px;
+  --sp-lg:  24px;
+  --sp-xl:  32px;
+  --sp-xxl: 48px;
+
+  /* ── Border radius – small scale (mirrors R) ── */
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   20px;
+  --r-full: 999px;
+
+  /* ── Border radius – large scale (mirrors RL) ── */
+  --rl-sm:  10px;
+  --rl-md:  16px;
+  --rl-lg:  24px;
+  --rl-xl:  32px;
 }

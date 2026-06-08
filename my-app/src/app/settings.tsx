@@ -1,8 +1,8 @@
 // src/app/settings.tsx — Tab 4: Cài đặt / Settings
-import React, { useEffect, useRef, useState } from "react";
+import { COLORS, SP, RL as R } from "@/constants/tokens";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -10,141 +10,15 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Lang, useLanguage } from "../context/LanguageContext";
+import { useLanguage } from "../context/LanguageContext";
 import * as api from "../api/client";
+import { ProfileField, InfoRow, LanguageToggle, Section } from "@/components";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const COLORS = {
-  pageBg: "#F5F7F6", cardBg: "#FFFFFF", heroBg: "#1A2E2A", heroSub: "#243D38",
-  accent: "#2ECC9A", accentDeep: "#1BAA7E", accentSoft: "#E6FAF4", accentText: "#15704F",
-  textPrimary: "#1A2422", textSecondary: "#6B8076", textMuted: "#9EB8B0",
-  textOnDark: "#FFFFFF", textOnDarkMuted: "#A8C4BC",
-  border: "#E8EFED", inputBg: "#F0F5F3", inputBorder: "#DDE8E5", shadow: "#1A2422",
-  langActive: "#1A2E2A", langInactive: "#F0F5F3",
-  destructive: "#FF6B6B", rowHover: "#F8FAFA",
-};
 
-const SP = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
-const R  = { sm: 10, md: 16, lg: 24, xl: 32 };
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function ProfileField({
-  label, value, placeholder, onChange, editing,
-  keyboardType = "default",
-}: {
-  label: string; value: string; placeholder: string;
-  onChange: (v: string) => void; editing: boolean;
-  keyboardType?: "default" | "email-address" | "numeric";
-}) {
-  return (
-    <View style={pStyles.fieldWrap}>
-      <Text style={pStyles.fieldLabel}>{label}</Text>
-      {editing ? (
-        <TextInput
-          style={pStyles.fieldInput}
-          value={value}
-          onChangeText={onChange}
-          placeholder={placeholder}
-          placeholderTextColor={COLORS.textMuted}
-          keyboardType={keyboardType}
-          autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
-          returnKeyType="done"
-          onSubmitEditing={() => Keyboard.dismiss()}
-        />
-      ) : (
-        <Text style={pStyles.fieldValue} numberOfLines={1}>{value || placeholder}</Text>
-      )}
-    </View>
-  );
-}
-
-const pStyles = StyleSheet.create({
-  fieldWrap:  { marginBottom: SP.md },
-  fieldLabel: { fontSize: 11, fontWeight: "700", color: COLORS.textMuted, letterSpacing: 0.4, marginBottom: SP.xs + 2, textTransform: "uppercase" },
-  fieldValue: { fontSize: 15, fontWeight: "600", color: COLORS.textPrimary, paddingVertical: SP.sm },
-  fieldInput: { fontSize: 15, fontWeight: "600", color: COLORS.textPrimary, backgroundColor: COLORS.inputBg, borderRadius: R.sm, borderWidth: 1.5, borderColor: COLORS.inputBorder, paddingHorizontal: SP.md, paddingVertical: SP.sm + 4 },
-});
-
-function InfoRow({ emoji, label, value, last, onPress }: {
-  emoji: string; label: string; value?: string; last?: boolean; onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[iStyles.row, !last && iStyles.rowBorder]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-    >
-      <View style={iStyles.emojiWrap}><Text style={iStyles.emoji}>{emoji}</Text></View>
-      <Text style={iStyles.label}>{label}</Text>
-      {value && <Text style={iStyles.value}>{value}</Text>}
-      {onPress && <Text style={iStyles.chevron}>›</Text>}
-    </TouchableOpacity>
-  );
-}
-
-const iStyles = StyleSheet.create({
-  row:       { flexDirection: "row", alignItems: "center", paddingVertical: SP.md, gap: SP.sm },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  emojiWrap: { width: 34, height: 34, borderRadius: R.sm, backgroundColor: COLORS.accentSoft, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  emoji:     { fontSize: 16 },
-  label:     { flex: 1, fontSize: 14, fontWeight: "600", color: COLORS.textPrimary },
-  value:     { fontSize: 12, color: COLORS.textMuted, fontWeight: "500", maxWidth: 180, textAlign: "right" },
-  chevron:   { fontSize: 18, color: COLORS.textMuted, marginLeft: SP.xs },
-});
-
-function LanguageToggle({ current, onChange, viLabel, enLabel }: {
-  current: Lang; onChange: (l: Lang) => void; viLabel: string; enLabel: string;
-}) {
-  const anim = useRef(new Animated.Value(current === "vi" ? 0 : 1)).current;
-
-  const select = (lang: Lang) => {
-    onChange(lang);
-    Animated.spring(anim, { toValue: lang === "vi" ? 0 : 1, useNativeDriver: false, friction: 8, tension: 80 }).start();
-  };
-
-  const TOGGLE_W = 280;
-  const PILL_W   = TOGGLE_W / 2 - 4;
-  const pillLeft  = anim.interpolate({ inputRange: [0, 1], outputRange: [4, TOGGLE_W / 2] });
-
-  return (
-    <View style={[ltStyles.track, { width: TOGGLE_W }]}>
-      <Animated.View style={[ltStyles.pill, { left: pillLeft, width: PILL_W }]} />
-      <TouchableOpacity style={[ltStyles.option, { width: TOGGLE_W / 2 }]} onPress={() => select("vi")} activeOpacity={0.8}>
-        <Text style={[ltStyles.optText, current === "vi" && ltStyles.optTextActive]}>{viLabel}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[ltStyles.option, { width: TOGGLE_W / 2 }]} onPress={() => select("en")} activeOpacity={0.8}>
-        <Text style={[ltStyles.optText, current === "en" && ltStyles.optTextActive]}>{enLabel}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const ltStyles = StyleSheet.create({
-  track:        { height: 46, backgroundColor: "#EBF2F0", borderRadius: R.xl, flexDirection: "row", alignItems: "center", position: "relative", overflow: "hidden" },
-  pill:         { position: "absolute", top: 4, height: 38, backgroundColor: COLORS.langActive, borderRadius: R.xl - 2, zIndex: 0 },
-  option:       { height: "100%" as any, alignItems: "center", justifyContent: "center", zIndex: 1 },
-  optText:      { fontSize: 13, fontWeight: "700", color: COLORS.textSecondary, letterSpacing: 0.1 },
-  optTextActive: { color: "#FFFFFF" },
-});
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={secStyles.wrapper}>
-      <Text style={secStyles.title}>{title}</Text>
-      <View style={secStyles.card}>{children}</View>
-    </View>
-  );
-}
-
-const secStyles = StyleSheet.create({
-  wrapper: { marginHorizontal: SP.md, marginTop: SP.lg },
-  title:   { fontSize: 12, fontWeight: "800", color: COLORS.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: SP.sm, paddingLeft: SP.xs },
-  card:    { backgroundColor: COLORS.cardBg, borderRadius: R.lg, paddingHorizontal: SP.lg, paddingTop: SP.md, paddingBottom: SP.xs, shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
-});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
@@ -265,8 +139,8 @@ export default function SettingsScreen() {
         <Section title={t.settPrefs}>
           <View style={styles.langBlock}>
             <View style={styles.langLabelRow}>
-              <View style={[iStyles.emojiWrap, { marginRight: SP.sm }]}>
-                <Text style={iStyles.emoji}>🌐</Text>
+              <View style={[styles.emojiWrap, { marginRight: SP.sm }]}>
+                <Text style={styles.emoji}>🌐</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prefLabel}>{t.settLang}</Text>
@@ -336,6 +210,8 @@ const styles = StyleSheet.create({
   saveBtn:     { backgroundColor: COLORS.heroBg, borderRadius: R.md, paddingVertical: SP.sm + 4, alignItems: "center", marginTop: SP.sm, marginBottom: SP.sm, shadowColor: COLORS.heroBg, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4 },
   saveBtnText: { fontSize: 15, fontWeight: "800", color: COLORS.textOnDark, letterSpacing: 0.2 },
 
+  emojiWrap: { width: 34, height: 34, borderRadius: R.sm, backgroundColor: COLORS.accentSoft, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  emoji:     { fontSize: 16 },
   langBlock:      { paddingBottom: SP.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: SP.xs },
   langLabelRow:   { flexDirection: "row", alignItems: "center", marginBottom: SP.md },
   prefLabel:      { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary },
