@@ -19,8 +19,12 @@
  */
 
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
 import { LanguageProvider, useLanguage } from "../context/LanguageContext";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import { setApiToken } from "../api/client";
+import AuthScreen from "../components/AuthScreen";
 
 // ─── Design tokens (keep in sync with screen files) ──────────────────────────
 const C = {
@@ -137,12 +141,36 @@ function AppTabs() {
   );
 }
 
-// ─── Root layout — wraps everything in the language provider ─────────────────
-export default function RootLayout() {
+// ─── Gate: chỉ vào app sau khi đăng nhập ─────────────────────────────────────
+function AppGate() {
+  const { token, loading } = useAuth();
+
+  // Đồng bộ token vào API client mỗi khi token thay đổi (không được gọi trong render)
+  useEffect(() => { setApiToken(token); }, [token]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#1A2E2A", alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#2ECC9A" />
+      </View>
+    );
+  }
+
+  if (!token) return <AuthScreen />;
+
   return (
     <LanguageProvider>
       <AppTabs />
     </LanguageProvider>
+  );
+}
+
+// ─── Root layout ──────────────────────────────────────────────────────────────
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
   );
 }
 

@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
 
+const authRoutes           = require("./routes/authRoutes");
 const homeRoutes           = require("./routes/homeRoutes");
 const addTransactionRoutes = require("./routes/addTransactionRoutes");
 const aiRoutes             = require("./routes/aiRoutes");
@@ -22,6 +23,9 @@ app.use(cors());
 app.use(express.json());
 
 // ── Routes ──────────────────────────────────────────────────────────────────
+// Auth
+app.use("/api/auth", authRoutes);
+
 // Tab 1 — Home / Dashboard
 app.use("/api/home", homeRoutes);
 
@@ -51,4 +55,5 @@ app.use(errorHandler);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Backend đang chạy tại cổng ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`Gemini API key: ${process.env.GEMINI_API_KEY ? "✅ Đã load" : "❌ Chưa có"}`);
 });

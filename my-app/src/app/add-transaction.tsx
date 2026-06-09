@@ -1,7 +1,7 @@
 // src/app/add-transaction.tsx — Tab: Ngân sách
 import { COLORS, SP, RL as R } from "@/constants/tokens";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Animated,
@@ -80,8 +80,6 @@ const EMOJI_LIST = [
 export default function AddTransactionScreen() {
   const { lang } = useLanguage();
   const s = (vi: string, en: string) => lang === "vi" ? vi : en;
-  const router = useRouter();
-
   // ── Page mode ──────────────────────────────────────────────────────────────
   const [pageMode, setPageMode] = useState<PageMode>("add");
   const [planMode, setPlanMode] = useState<PlanMode>("monthly");
@@ -122,6 +120,8 @@ export default function AddTransactionScreen() {
 
 
   const planSavedAnim   = useRef(new Animated.Value(0)).current;
+  const txSavedAnim     = useRef(new Animated.Value(0)).current;
+  const [showTxSaved,   setShowTxSaved]   = useState(false);
 
   // ── Spending derived from real data ───────────────────────────────────────
   const emojiToCatId = useMemo(() => {
@@ -198,7 +198,7 @@ export default function AddTransactionScreen() {
       setNotes("");
       setSelectedCat(null);
       setSelectedDate(new Date());
-      router.navigate("/");
+      triggerTxSaved();
     } catch (e: any) {
       setErrorMsg(e.message ?? "Lưu thất bại, thử lại.");
     } finally {
@@ -226,6 +226,15 @@ export default function AddTransactionScreen() {
       Animated.delay(1800),
       Animated.timing(planSavedAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
     ]).start(() => setPlanSaved(false));
+  };
+
+  const triggerTxSaved = () => {
+    setShowTxSaved(true);
+    Animated.sequence([
+      Animated.timing(txSavedAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(txSavedAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
+    ]).start(() => setShowTxSaved(false));
   };
 
   const fetchBudgetData = useCallback(async () => {
@@ -916,6 +925,17 @@ export default function AddTransactionScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Transaction saved toast ── */}
+      {showTxSaved && (
+        <Animated.View style={[st.toast, { opacity: txSavedAnim }]}>
+          <Text style={st.toastEmoji}>✓</Text>
+          <View>
+            <Text style={st.toastTitle}>{s("Đã ghi thành công!", "Saved successfully!")}</Text>
+            <Text style={st.toastSub}>{s("Giao dịch đã được lưu lại", "Your transaction has been recorded")}</Text>
+          </View>
+        </Animated.View>
+      )}
 
       {/* ── Plan saved toast ── */}
       {planSaved && (

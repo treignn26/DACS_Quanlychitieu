@@ -7,7 +7,7 @@ const getProfile = async () => {
     profile = await Profile.create({
       name: "Người dùng",
       email: "",
-      monthlyBudget: 10_000_000,
+      monthlyBudget: 0,
     });
   }
   return profile;

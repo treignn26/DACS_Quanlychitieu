@@ -1,4 +1,4 @@
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const {
   getThisMonthTransactions,
   getLastMonthTransactions,
@@ -185,34 +185,59 @@ const computeSpendingBreakdown = (transactions) => {
     .slice(0, 5);
 };
 
-// ── Chat với Claude AI ──────────────────────────────────────────────────────
+// ── Chat với Gemini AI ──────────────────────────────────────────────────────
 const chatWithAI = async (query, financialContext, lang) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
     return lang === "vi"
-      ? "Chức năng AI chưa được cấu hình. Vui lòng thêm ANTHROPIC_API_KEY vào file .env."
-      : "AI feature not configured. Please add ANTHROPIC_API_KEY to your .env file.";
+      ? "⚠️ Chưa có API key. Thêm GEMINI_API_KEY vào file .env rồi restart server."
+      : "⚠️ No API key. Add GEMINI_API_KEY to .env then restart the server.";
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const genAI = new GoogleGenerativeAI(key);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  const systemPrompt = `Bạn là trợ lý tài chính cá nhân thông minh. Dữ liệu tài chính hiện tại của người dùng:
+  // Nhúng context tài chính trực tiếp vào prompt (tránh dùng systemInstruction)
+  const fullPrompt = `Bạn là trợ lý tài chính cá nhân. Dữ liệu tháng này:
 - Số dư: ${fmtVND(financialContext.balance)}
-- Thu nhập tháng này: ${fmtVND(financialContext.totalIncome)}
-- Chi tiêu tháng này: ${fmtVND(financialContext.totalExpense)}
-- Ngân sách tháng: ${fmtVND(financialContext.monthlyBudget)}
-- Đã dùng ngân sách: ${financialContext.budgetPct}%
+- Thu nhập: ${fmtVND(financialContext.totalIncome)}
+- Chi tiêu: ${fmtVND(financialContext.totalExpense)}
 - Điểm sức khoẻ tài chính: ${financialContext.healthScore}/100
 
-Hãy trả lời bằng ${lang === "vi" ? "tiếng Việt" : "tiếng Anh"}. Ngắn gọn, thực tế, khuyến khích. Tối đa 120 từ.`;
+Hãy trả lời bằng ${lang === "vi" ? "tiếng Việt" : "tiếng Anh"}. Ngắn gọn, thực tế. Tối đa 120 từ.
 
-  const message = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 300,
-    system: systemPrompt,
-    messages: [{ role: "user", content: query }],
-  });
+Câu hỏi: ${query}`;
 
-  return message.content[0].text;
+  const callGemini = () => model.generateContent(fullPrompt);
+
+  try {
+    const result = await callGemini();
+    return result.response.text();
+  } catch (err) {
+    const msg  = err?.message ?? String(err);
+    const code = msg.includes("429") ? 429 : msg.includes("401") || msg.includes("403") ? 403 : msg.includes("404") ? 404 : 0;
+    console.error(`Gemini API error [${code}]:`, msg.slice(0, 200));
+
+    // Tự động chờ 12 giây rồi thử lại một lần khi bị rate-limit
+    if (code === 429) {
+      console.log("Gemini 429 — chờ 12s rồi retry...");
+      await new Promise((r) => setTimeout(r, 12_000));
+      try {
+        const retry = await callGemini();
+        return retry.response.text();
+      } catch (err2) {
+        const msg2 = err2?.message ?? String(err2);
+        console.error("Gemini retry cũng lỗi:", msg2.slice(0, 200));
+        return lang === "vi"
+          ? "⚠️ Gemini đang bận, thử lại sau 1 phút nhé."
+          : "⚠️ Gemini is busy, please try again in 1 minute.";
+      }
+    }
+
+    if (code === 401 || code === 403) return lang === "vi" ? "⚠️ API key không hợp lệ. Kiểm tra GEMINI_API_KEY trong .env." : "⚠️ Invalid API key. Check GEMINI_API_KEY in .env.";
+    if (code === 404) return lang === "vi" ? "⚠️ Model không tìm thấy. Đổi tên model trong aiService.js." : "⚠️ Model not found. Change model name in aiService.js.";
+    return lang === "vi" ? `⚠️ Lỗi Gemini: ${msg.slice(0, 120)}` : `⚠️ Gemini error: ${msg.slice(0, 120)}`;
+  }
 };
 
 // ── Hàm tổng hợp cho AI controller ─────────────────────────────────────────

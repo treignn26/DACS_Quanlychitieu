@@ -281,7 +281,7 @@ export default function AIAssistantScreen() {
           </View>
 
           <Text style={styles.disclaimer}>
-            ✦ Powered by Claude AI · Anthropic{"\n"}
+            ✦ Powered by Gemini AI · Google{"\n"}
             {s(
               "Chỉ mang tính tham khảo — không phải tư vấn tài chính chuyên nghiệp.",
               "For reference only — not professional financial advice.",

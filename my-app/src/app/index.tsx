@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   FlatList,
+  ScrollView,
   StyleSheet,
   SafeAreaView,
   StatusBar,
@@ -79,8 +80,8 @@ export default function HomeScreen() {
   const [showCal,      setShowCal]      = useState(false);
 
   // ── Budget plan state
-  const [budgetData,   setBudgetData]   = useState<api.BudgetData | null>(null);
-  const [showPlan,     setShowPlan]     = useState(false);
+  const [budgetData,      setBudgetData]      = useState<api.BudgetData | null>(null);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
 
   // ── Delete state
   const [deletingTx,       setDeletingTx]       = useState<Tx | null>(null);
@@ -298,10 +299,10 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* BUDGET BAR — ấn để mở/đóng kế hoạch */}
+      {/* BUDGET BAR — ấn để mở modal kế hoạch */}
       <TouchableOpacity
         style={s.budgetCard}
-        onPress={() => budgetCatItems.length > 0 && setShowPlan((v) => !v)}
+        onPress={() => budgetCatItems.length > 0 && setShowBudgetModal(true)}
         activeOpacity={budgetCatItems.length > 0 ? 0.82 : 1}
       >
         <View style={s.budgetHeaderRow}>
@@ -311,7 +312,7 @@ export default function HomeScreen() {
               {barPct}%
             </Text>
             {budgetCatItems.length > 0 && (
-              <Text style={s.budgetChevron}>{showPlan ? "▲" : "▼"}</Text>
+              <Text style={s.budgetChevron}>›</Text>
             )}
           </View>
         </View>
@@ -336,38 +337,6 @@ export default function HomeScreen() {
               ? `⛔ Chi tiêu đã vượt thu nhập ${barPct}%! Hãy kiểm soát chi tiêu của bạn.`
               : `⛔ Spending at ${barPct}% of income! Time to rein in your expenses.`}
           </Text>
-        </View>
-      )}
-
-      {/* BUDGET PLAN CATEGORIES — chỉ hiện khi showPlan */}
-      {showPlan && budgetCatItems.length > 0 && (
-        <View style={s.planCard}>
-          <Text style={s.planCardTitle}>
-            {lang === "vi" ? "Kế hoạch tháng này" : "This Month's Plan"}
-          </Text>
-          {budgetCatItems.map((item) => (
-            <View key={item.catId} style={s.planCatRow}>
-              <Text style={s.planCatEmoji}>{item.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <View style={s.planCatHeader}>
-                  <Text style={s.planCatName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={[s.planCatPct, item.pct >= 100 && { color: COLORS.expenseText }]}>
-                    {Math.round(item.pct)}%
-                  </Text>
-                </View>
-                <View style={s.planCatTrack}>
-                  <View style={[
-                    s.planCatFill,
-                    {
-                      width: `${Math.min(item.pct, 100)}%` as any,
-                      backgroundColor: item.pct >= 100 ? COLORS.expense : item.pct >= 80 ? "#E67E22" : COLORS.accent,
-                    },
-                  ]} />
-                </View>
-                <Text style={s.planCatSub}>{fmtVND(item.spent)} / {fmtVND(item.limit)}</Text>
-              </View>
-            </View>
-          ))}
         </View>
       )}
 
@@ -497,9 +466,226 @@ export default function HomeScreen() {
           </Text>
         </Animated.View>
       )}
+
+      {/* ── Budget plan modal ── */}
+      <BudgetPlanModal
+        visible={showBudgetModal}
+        onClose={() => setShowBudgetModal(false)}
+        items={budgetCatItems}
+        budgetData={budgetData}
+        barPct={barPct}
+        totalExpense={totalExpense}
+        totalIncome={totalIncome}
+        lang={lang}
+      />
     </SafeAreaView>
   );
 }
+
+// ─── BudgetPlanModal ──────────────────────────────────────────────────────────
+
+type BudgetItem = { catId: string; emoji: string; name: string; spent: number; limit: number; pct: number };
+
+function BudgetPlanModal({
+  visible, onClose, items, budgetData, barPct, totalExpense, totalIncome, lang,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  items: BudgetItem[];
+  budgetData: api.BudgetData | null;
+  barPct: number;
+  totalExpense: number;
+  totalIncome: number;
+  lang: "vi" | "en";
+}) {
+  const vi = lang === "vi";
+  const budgetOver = barPct >= 100;
+  const today = new Date();
+  const monthLabel = today.toLocaleDateString(vi ? "vi-VN" : "en-US", { month: "long", year: "numeric" });
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={bm.root}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.heroBg} />
+
+        {/* Header */}
+        <View style={bm.header}>
+          <TouchableOpacity style={bm.backBtn} onPress={onClose} activeOpacity={0.75}>
+            <Text style={bm.backArrow}>‹</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={bm.title}>{vi ? "Ngân sách tháng" : "Monthly Budget"}</Text>
+            <Text style={bm.subtitle}>{monthLabel}</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={bm.body}
+        >
+          {/* Tổng quan */}
+          <View style={[bm.summaryCard, { borderColor: budgetOver ? COLORS.expenseBorder : COLORS.incomeBorder }]}>
+            <View style={bm.summaryRow}>
+              <View style={bm.summaryItem}>
+                <Text style={bm.summaryLabel}>{vi ? "Đã chi" : "Spent"}</Text>
+                <Text style={[bm.summaryValue, { color: COLORS.expenseText }]}>{fmtVND(totalExpense)}</Text>
+              </View>
+              <View style={bm.summaryDivider} />
+              <View style={bm.summaryItem}>
+                <Text style={bm.summaryLabel}>{vi ? "Thu nhập" : "Income"}</Text>
+                <Text style={[bm.summaryValue, { color: COLORS.incomeText }]}>{fmtVND(totalIncome)}</Text>
+              </View>
+              <View style={bm.summaryDivider} />
+              <View style={bm.summaryItem}>
+                <Text style={bm.summaryLabel}>{vi ? "Tỷ lệ" : "Usage"}</Text>
+                <Text style={[bm.summaryValue, { color: budgetOver ? COLORS.expenseText : COLORS.incomeText }]}>
+                  {barPct}%
+                </Text>
+              </View>
+            </View>
+            <View style={bm.overallTrack}>
+              <View style={[bm.overallFill, {
+                width: `${Math.min(barPct, 100)}%` as any,
+                backgroundColor: budgetOver ? COLORS.expense : COLORS.accent,
+              }]} />
+            </View>
+          </View>
+
+          {/* Cảnh báo vượt ngân sách */}
+          {budgetOver && (
+            <View style={bm.warnBanner}>
+              <Text style={bm.warnText}>
+                {vi
+                  ? `⛔ Chi tiêu đã vượt thu nhập ${barPct}%! Hãy kiểm soát chi tiêu.`
+                  : `⛔ Spending at ${barPct}% of income! Time to cut back.`}
+              </Text>
+            </View>
+          )}
+
+          {/* Danh sách danh mục */}
+          <Text style={bm.sectionTitle}>
+            {vi ? "Chi tiết theo danh mục" : "Category Breakdown"}
+          </Text>
+
+          {items.length === 0 ? (
+            <View style={bm.emptyWrap}>
+              <Text style={bm.emptyEmoji}>📋</Text>
+              <Text style={bm.emptyText}>
+                {vi ? "Chưa có kế hoạch danh mục nào." : "No category budgets set yet."}
+              </Text>
+            </View>
+          ) : (
+            <View style={bm.catList}>
+              {items.map((item) => {
+                const over = item.pct >= 100;
+                const warn = item.pct >= 80 && !over;
+                const fillColor = over ? COLORS.expense : warn ? "#E67E22" : COLORS.accent;
+                return (
+                  <View key={item.catId} style={bm.catRow}>
+                    <View style={bm.catIconWrap}>
+                      <Text style={bm.catEmoji}>{item.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={bm.catHeaderRow}>
+                        <Text style={bm.catName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={[bm.catPct, { color: over ? COLORS.expenseText : warn ? "#E67E22" : COLORS.incomeText }]}>
+                          {Math.round(item.pct)}%
+                        </Text>
+                      </View>
+                      <View style={bm.catTrack}>
+                        <View style={[bm.catFill, { width: `${Math.min(item.pct, 100)}%` as any, backgroundColor: fillColor }]} />
+                      </View>
+                      <Text style={bm.catSub}>{fmtVND(item.spent)} / {fmtVND(item.limit)}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Thông tin kế hoạch tổng */}
+          {budgetData?.plan && (budgetData.plan.monthlySavings > 0 || budgetData.plan.otherPlan) && (
+            <View style={bm.planInfoCard}>
+              {budgetData.plan.monthlySavings > 0 && (
+                <View style={bm.planInfoRow}>
+                  <Text style={bm.planInfoLabel}>💰 {vi ? "Mục tiêu tiết kiệm" : "Savings goal"}</Text>
+                  <Text style={bm.planInfoValue}>{fmtVND(budgetData.plan.monthlySavings)}</Text>
+                </View>
+              )}
+              {!!budgetData.plan.otherPlan && (
+                <View style={[bm.planInfoRow, { borderBottomWidth: 0 }]}>
+                  <Text style={bm.planInfoLabel}>📝 {vi ? "Ghi chú kế hoạch" : "Plan note"}</Text>
+                  <Text style={[bm.planInfoValue, { flexShrink: 1 }]} numberOfLines={2}>{budgetData.plan.otherPlan}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={{ height: SP.xxl }} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const bm = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.pageBg },
+
+  header: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: COLORS.heroBg,
+    paddingTop: Platform.OS === "ios" ? 56 : 40,
+    paddingBottom: SP.md,
+    paddingHorizontal: SP.md,
+    gap: SP.sm,
+  },
+  backBtn:   { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
+  backArrow: { fontSize: 26, color: COLORS.textOnDark, lineHeight: 30, fontWeight: "300", marginTop: -2 },
+  title:     { fontSize: 17, fontWeight: "800", color: COLORS.textOnDark, letterSpacing: -0.2 },
+  subtitle:  { fontSize: 11, color: COLORS.textOnDarkMuted, marginTop: 1, fontWeight: "500" },
+
+  body: { padding: SP.md, paddingTop: SP.lg },
+
+  summaryCard: { backgroundColor: COLORS.cardBg, borderRadius: R.lg, padding: SP.md, marginBottom: SP.md, borderWidth: 1.5, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  summaryRow:  { flexDirection: "row", marginBottom: SP.md },
+  summaryItem: { flex: 1, alignItems: "center" },
+  summaryLabel:{ fontSize: 11, color: COLORS.textMuted, fontWeight: "600", marginBottom: 3 },
+  summaryValue:{ fontSize: 14, fontWeight: "800" },
+  summaryDivider: { width: 1, backgroundColor: COLORS.border, marginVertical: SP.xs },
+  overallTrack:{ height: 8, backgroundColor: COLORS.border, borderRadius: R.full, overflow: "hidden" },
+  overallFill: { height: "100%", borderRadius: R.full },
+
+  warnBanner: { backgroundColor: COLORS.expenseBg, borderRadius: R.lg, padding: SP.md, marginBottom: SP.md, borderWidth: 1, borderColor: COLORS.expenseBorder },
+  warnText:   { fontSize: 13, fontWeight: "600", color: COLORS.expenseText, lineHeight: 18 },
+
+  sectionTitle: { fontSize: 13, fontWeight: "800", color: COLORS.textMuted, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: SP.sm, marginTop: SP.xs },
+
+  emptyWrap:  { alignItems: "center", paddingVertical: SP.xl },
+  emptyEmoji: { fontSize: 40, marginBottom: SP.md },
+  emptyText:  { fontSize: 14, color: COLORS.textSecondary, textAlign: "center" },
+
+  catList:     { backgroundColor: COLORS.cardBg, borderRadius: R.lg, paddingHorizontal: SP.md, paddingTop: SP.sm, paddingBottom: SP.xs, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  catRow:      { flexDirection: "row", alignItems: "center", paddingVertical: SP.sm + 2, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SP.sm },
+  catIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.accentSoft, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  catEmoji:    { fontSize: 18 },
+  catHeaderRow:{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  catName:     { fontSize: 14, fontWeight: "600", color: COLORS.textPrimary, flex: 1, marginRight: SP.sm },
+  catPct:      { fontSize: 13, fontWeight: "800" },
+  catTrack:    { height: 6, backgroundColor: COLORS.border, borderRadius: R.full, overflow: "hidden", marginBottom: 3 },
+  catFill:     { height: "100%", borderRadius: R.full },
+  catSub:      { fontSize: 11, color: COLORS.textMuted },
+
+  planInfoCard:    { backgroundColor: COLORS.cardBg, borderRadius: R.lg, marginTop: SP.md, paddingHorizontal: SP.md, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  planInfoRow:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: SP.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  planInfoLabel:   { fontSize: 13, fontWeight: "600", color: COLORS.textSecondary },
+  planInfoValue:   { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary, marginLeft: SP.md, textAlign: "right" },
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({

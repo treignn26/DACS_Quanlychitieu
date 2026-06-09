@@ -13,7 +13,7 @@ const profileSchema = new mongoose.Schema(
     },
     monthlyBudget: {
       type: Number,
-      default: 10_000_000,
+      default: 0,
       min: 0,
     },
   },

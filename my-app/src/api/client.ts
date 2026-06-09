@@ -1,5 +1,9 @@
 import { API_BASE } from "./config";
 
+// Token holder — được set bởi AuthContext khi login/logout
+let _token: string | null = null;
+export const setApiToken = (t: string | null) => { _token = t; };
+
 // ─── Types khớp với response từ backend ───────────────────────────────────────
 
 export interface Transaction {
@@ -76,9 +80,12 @@ export interface AIOverview {
 
 // ─── Hàm fetch nội bộ ─────────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
+
   const res = await fetch(`${API_BASE}${url}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { ...headers, ...options?.headers },
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.message ?? "Lỗi server");
@@ -206,3 +213,40 @@ export const updateProfile = (data: {
 
 export const clearAllData = () =>
   apiFetch<null>("/api/settings/data", { method: "DELETE" });
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface AuthResult {
+  token: string;
+  user: { _id: string; name: string; email: string };
+}
+
+export const authRegister = (data: { name: string; email: string; password: string }) =>
+  apiFetch<AuthResult>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const authLogin = (data: { email: string; password: string }) =>
+  apiFetch<AuthResult>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+// Kiểm tra token còn hợp lệ không (dùng lúc khởi động app)
+export const authMe = () =>
+  apiFetch<{ user: AuthResult["user"] }>("/api/auth/me");
+
+// Cập nhật tên / email của user đang đăng nhập
+export const authUpdateMe = (data: { name?: string; email?: string }) =>
+  apiFetch<{ user: AuthResult["user"] }>("/api/auth/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
+// Đổi mật khẩu
+export const authChangePassword = (data: { oldPassword: string; newPassword: string }) =>
+  apiFetch<null>("/api/auth/password", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
